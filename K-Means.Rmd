@@ -1,0 +1,1336 @@
+---
+title: "" 
+author: ""
+date: ""
+output:
+  pdf_document:
+    latex_engine: xelatex
+    toc: false
+    toc_depth: 3
+    number_sections: false
+    fig_caption: true
+    keep_tex: true
+  html_document: default
+header-includes:
+  - \renewcommand{\contentsname}{MỤC LỤC}
+  - \usepackage{graphicx}
+  - \usepackage{fontspec}
+  - \usepackage{tikz}
+  - \usepackage{geometry}
+  - \geometry{a4paper, margin=2.5cm}
+  - \setmainfont{Times New Roman}
+  - \usetikzlibrary{calc}
+---
+```{=latex}
+\begin{titlepage}
+\begin{center}
+
+\vspace*{-2cm}
+
+\begin{tikzpicture}[remember picture, overlay]
+  \draw[line width=0.8pt]
+    ($(current page.north west) + (1.5cm,-1.5cm)$)
+    rectangle
+    ($(current page.south east) + (-1.5cm,1.5cm)$);
+\end{tikzpicture}
+
+
+\noindent
+\begin{minipage}{0.3\textwidth}
+\includegraphics[width=\linewidth]{logo.png.jpg}
+\end{minipage}
+\hfill
+\begin{minipage}{0.65\textwidth}
+\centering
+\textbf{BỘ GIÁO DỤC VÀ ĐÀO TẠO}\\[0.2cm]
+\textbf{TRƯỜNG ĐẠI HỌC CÔNG NGHỆ TP.HCM}
+\end{minipage}
+
+\vfill 
+
+
+\begin{center}
+
+\textbf{\Large ĐỒ ÁN MÔN HỌC}\\[1cm]
+
+\textbf{\large \uppercase{ỨNG DỤNG RFM, K-MEANS VÀ DBSCAN TRONG}}\\
+\textbf{\large \uppercase{PHÂN KHÚC KHÁCH HÀNG VÀ TỐI ƯU DOANH THU}}\\[1.2cm]
+
+\begin{flushleft}
+\textbf{Ngành:} \textbf{KHOA HỌC DỮ LIỆU}\\
+\textbf{Môn học:} \textbf{PHÂN TÍCH VÀ TRỰC QUAN DỮ LIỆU}\\[1cm]
+
+\textbf{Giảng viên hướng dẫn:} \textbf{LÊ NHẬT TÙNG}\\
+\textbf{Sinh viên thực hiện:}
+\end{flushleft}
+
+\vspace{0.3cm}
+
+\begin{tabular}{ll}
+Nguyễn Nhật Nam      & MSSV: 2286400019 \\
+Hoàng Quang Minh     & MSSV: 2286400017 \\
+Hà Thế Anh           & MSSV: 2286400002 \\
+\end{tabular}
+
+\vspace{0.5cm}
+
+\textbf{Lớp:} \textbf{22DKHA1}
+
+\end{center}
+
+\vfill
+
+
+\begin{center}
+TP. Hồ Chí Minh, 2025
+\end{center}
+
+\end{center}
+\end{titlepage}
+```
+
+\newpage
+\tableofcontents
+\newpage
+
+
+
+# **Thuật toán phân cụm K – Means**
+
+## Khái niệm về K – Means
+
+Thuật toán K-means là một kỹ thuật học không giám sát nổi bật, được ứng dụng rộng rãi trong phân tích dữ liệu nhằm chia tập dữ liệu chưa gán nhãn thành các nhóm (cụm) sao cho các điểm dữ liệu trong cùng một cụm có mức độ tương đồng cao, trong khi sự khác biệt giữa các cụm là tối đa. Nguyên lý hoạt động của K-means dựa trên việc tối thiểu hóa tổng bình phương khoảng cách giữa các điểm dữ liệu và tâm cụm mà chúng được gán vào. Mỗi điểm sẽ được phân vào cụm có trung tâm gần nhất, và các tâm cụm được cập nhật liên tục cho đến khi đạt được trạng thái hội tụ.
+
+
+Mục tiêu chính của K-Means là giảm thiểu tổng bình phương khoảng cách giữa các điểm dữ liệu và trung tâm cụm của chúng, được gọi là Within-Cluster Sum of Squares (WCSS):
+
+$$WCSS = \sum_{i=1}^{K} \sum_{x \in C_i} \| x - \mu_i \|^2$$
+Trong đó:
+
+- $K$: Là số lượng cụm  
+- $C_i$: Là tập hợp các điểm thuộc cụm thứ $i$  
+- $\mu_i$: Là trung tâm (tâm cụm) của cụm thứ $i$  
+- $\|x - \mu_i\|^2$: Là bình phương khoảng cách Euclidean giữa điểm $x$ và tâm cụm $\mu_i$
+
+## Cách hoạt động của K-Means
+
+Bước 1: Chọn số lượng cụm
+
+  - Xác định số lượng cụm $K$ mà ta sẽ nhóm dữ liệu. Ví dụ chọn $K = 3$.
+  
+Bước 2: Khởi tạo tâm cụm ban đầu
+
+  -	Do vị trí chính xác của các tâm cụm chưa được biết, nên ở giai đoạn khởi tạo, thuật toán sẽ chọn ngẫu nhiên K điểm từ tập dữ liệu và coi đó là các tâm cụm ban đầu.
+
+
+Bước 3: Gán điểm dữ liệu cho cụm gần nhất
+
+  -	Sau khi đã có tâm cụm ban đầu, mỗi điểm dữ liệu sẽ được gán vào cụm có tâm gần nhất. Khoảng cách giữa điểm dữ liệu và tâm cụm thường được đo bằng khoảng cách Euclidean. Điểm dữ liệu sẽ thuộc về cụm có tâm mà nó có khoảng cách Euclidean ngắn nhất.
+
+  - Đo khoảng cách từ các điểm tới tâm cụm bằng phép đo khoảng cách Euclidean.
+
+$$d(x, y) = \sqrt{ \sum_{i=1}^{n} (x_i - y_i)^2 }$$
+
+  - Sau đó chọn cụm cho dữ liệu có khoảng cách giữa các điểm dữ liệu và tâm nhỏ nhất.
+
+
+Bước 4: Khởi tạo lại tâm cụm
+
+  - Khởi tạo lại trọng tâm bằng cách tính toán giá trị trung bình của tất cả các điểm dữ liệu của cụm đó.
+  
+$$C_i = \frac{1}{|N_i|} \sum x_i$$
+
+Trong đó:
+
+- $C_i$: là tâm cụm thứ $i$ (centroid của cụm $i$)  
+- $N_i$: là tập các điểm thuộc cụm $i$  
+- $|N_i|$: là số lượng điểm trong cụm $i$ (kích thước cụm)  
+- $\sum x_i$: là tổng các vector dữ liệu $x_i$ trong cụm $i$
+
+
+Bước 5: Lặp lại 
+
+  -	Tiến hành lặp lại bước 3 và bước 4 cho đến khi có được trọng tâm tối ưu và việc chỉ định các điểm dữ liệu cho các cụm chính xác không còn thay đổi.
+
+
+## Lựa chọn K cho K – Means
+
+Một trong những thách thức lớn nhất khi sử dụng K-Means là xác định số lượng cụm K phù hợp. Không có một giá trị K tối ưu duy nhất cho mọi bộ dữ liệu, và việc chọn K phụ thuộc vào đặc điểm của dữ liệu và mục tiêu phân tích. Dưới đây là những phương pháp chọn K cho tối ưu:
+
+**Phương pháp Elbow (Khuỷu tay)**: Tìm số lượng cụm sao cho tổng phương sai trong cụm (WSS – within-cluster sum of squares) là nhỏ nhất, nhưng không giảm quá nhiều khi tăng thêm cụm. Công thức WCSS:
+
+$$WCSS = \sum_{i=1}^{K} \sum_{x \in C_i} \| x - \mu_i \|^2$$
+
+  -	**Cách thực hiện:**
+  
+    *	Thực hiện phân cụm với các giá trị K khác nhau (ví dụ từ 1 đến 10).
+    *	Tính tổng WSS cho mỗi K.
+    *	Vẽ biểu đồ WSS theo số cụm K.
+    *	Điểm "gấp khúc" (elbow) trên đồ thị thường là nơi phù hợp để chọn K.
+    
+**Phương pháp Silhouette**: Đánh giá mức độ phù hợp của từng điểm dữ liệu với cụm của nó. Giá trị Silhouette càng gần 1 cho thấy điểm đó nằm “đúng” trong cụm hơn.
+
+  - **Cách thực hiện:**
+    *	Phân cụm dữ liệu với các giá trị khác nhau.
+    *	Tính độ rộng silhouette trung bình cho mỗi giá trị K.
+    *	Vẽ đồ thị silhouette theo K.
+    *	Chọn K tại vị trí có giá trị silhouette trung bình lớn nhất.
+    
+  - **Công thức:**
+
+$$
+s(i) = \frac{b(i) - a(i)}{\max(a(i),\ b(i))}
+$$
+    a(i): Khoảng cách trung bình từ điểm *i* đến tất cả các điểm khác trong cùng cụm.
+    b(i): Khoảng cách trung bình nhỏ nhất từ điểm *i* đến các điểm trong cụm khác gần nhất.
+
+- **Kết quả Silhouette trả về nằm trong khoảng** \([-1, 1]\):
+  - Gần **1**: Điểm dữ liệu được phân cụm **rất tốt**.
+  - Gần **0**: Điểm dữ liệu nằm ở **ranh giới giữa hai cụm**.
+  - Gần **-1**: Điểm dữ liệu có thể bị **phân cụm sai hoàn toàn**.
+
+- **Đánh giá chất lượng phân cụm dựa trên Silhouette trung bình**:
+  - **0.71 – 1.00**: Cấu trúc phân cụm **mạnh**.
+  - **0.51 – 0.70**: Cấu trúc phân cụm **hợp lý**.
+  - **0.26 – 0.50**: Cấu trúc phân cụm **yếu**, nên **xem xét lại**.
+  - **≤ 0.25**: **Không phát hiện được** cấu trúc phân cụm rõ ràng.
+
+
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+# Đặt locale để hỗ trợ tiếng Việt trong đồ thị
+Sys.setlocale("LC_ALL", "Vietnamese")
+```
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(tidyverse)
+library(cluster)
+library(factoextra)
+library(lubridate)
+library(scales)
+library(psych)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(gridExtra)
+```
+
+
+# Đọc và khám phá dữ liệu
+
+```{r}
+# Đọc dữ liệu
+df <- read_excel("Online Retail.xlsx")
+head(df)  
+
+```
+
+  InvoiceNo: Mã đơn hàng 
+  
+  StockCode: Mã sản phẩm 
+  
+  Description: Mô tả sản phẩm 
+  
+  Quantity: Số lượng sản phẩm 
+  
+  InvoiceDate: Ngày hóa đơn 
+  
+  UnitPrice: Giá sản phẩm trên mỗi đơn vị 
+  
+  CustomerID: Mã khách hàng 
+  
+  Country: Quốc gia của khách hàng
+  
+
+```{r}
+#Kiểm tra kiểu dữ liệu
+str(df)
+```
+
+
+```{r}
+# thống kê mô tả dữ liệu 
+describe(df)
+```
+
+```{r}
+# Thống kê data object 
+summary(df[, sapply(df, is.character)])
+```
+```{r}
+#kiểm tra dữ liệu thiếu 
+colSums(is.na(df))
+```
+
+
+```{r}
+# Kiểm tra giá trị thiếu của CustomerID
+df_na <- df[is.na(df$CustomerID), ]
+print(df_na[sample(nrow(df_na), 10), ], width = Inf)
+```
+
+```{r}
+# Chuyển 'InvoiceNo' về kiểu chuỗi
+df$InvoiceNo <- as.character(df$InvoiceNo)
+#Lọc ra những dòng KHÔNG có InvoiceNo đúng 6 chữ số
+df[!grepl("^\\d{6}$", df$InvoiceNo), ]
+
+#Kiểm tra kí tự khác trong cột InvoiceNo 
+unique(gsub("[0-9]", "", df$InvoiceNo))
+
+# kiểm tra col 'InvoiceNo' có giá trị nào bắt đầu bằng kí tự 'A' ko
+df[grepl("^A", df$InvoiceNo), ]
+```
+```{r}
+# Đảm bảo 'StockCode' là kiểu chuỗi
+df$StockCode <- as.character(df$StockCode)
+# Lọc những dòng KHÔNG phải 5 chữ số hoặc 5 chữ số + chữ cái
+mask <- !(grepl("^\\d{5}$", df$StockCode) | grepl("^\\d{5}[a-zA-Z]+$", df$StockCode))
+# Lấy các StockCode sai định dạng và loại trùng
+invalid_stockcodes <- unique(df$StockCode[mask])
+# Hiển thị kết quả
+print(invalid_stockcodes)
+# Lọc những dòng có chứa chuỗi 'DOT'
+df_with_DOT <- df[grepl("DOT", df$StockCode), ]
+# Hiển thị kết quả
+print(df_with_DOT)
+```
+
+ **Stock Code**
+
+- **Include** 🟢 → Giữ lại để phân tích hoặc clustering.  
+- **Exclude** ❌ → Loại bỏ hoàn toàn, không dùng để phân tích.  
+- **Exclude from clustering** 🚫 → Không dùng để phân nhóm nhưng có thể tham khảo.  
+- **Exclude for now** ⏳ → Tạm loại bỏ, có thể xem xét lại sau. 
+
+- **StockCode** is meant to follow the pattern `[0-9]{5}` but seems to have legit values for `[0-9]{5}[a-zA-Z]+`.  
+&nbsp;&nbsp;&nbsp;&nbsp; **Also contains other values:** 
+
+
+
+| Code             | Description                                                                 | Action                      |
+|------------------|-----------------------------------------------------------------------------|-----------------------------|
+| POST            | Not listed previously, likely a postage-related transaction                | Exclude for now             |
+| D               | Looks valid, represents discount values                                    | Exclude from clustering     |
+| C2              | Carriage transaction - not sure what this means                           | Exclude from clustering     |
+| DOT             | Looks valid, represents postage charges                                   | Exclude from clustering     |
+| M or m          | Looks valid, represents manual transactions                               | Exclude from clustering     |
+| BANK CHARGES or B | Bank charges                                                           | Exclude from clustering     |
+| S               | Samples sent to customer                                                 | Exclude from clustering     |
+| AMAZONFEE       | Looks like fees for Amazon shipping or something                         | Exclude for now             |
+| DCGS0076        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0003        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| gift_0001_40    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| DCGS0070        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| m               | Looks valid, represents manual transactions                              | Exclude from clustering     |
+| gift_0001_50    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| gift_0001_30    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| gift_0001_20    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| DCGS0055        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0072        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0074        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0069        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0057        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGSSBOY        | Possible category or bundle-related code                                 | Exclude for now             |
+| DCGSSGIRL       | Possible category or bundle-related code                                 | Exclude for now             |
+| gift_0001_10    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| PADS            | Looks like a legit stock code for padding                                | Include                     |
+| DCGS0004        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0073        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0071        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0068        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0067        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0066P       | Variant of DCGS, possibly a special category                            | Exclude from clustering     |
+| B               | Bank charges                                                             | Exclude from clustering     |
+| CRUK            | Unknown, possibly a charity-related code                                | Exclude for now             |
+
+
+# Xử lý dữ liệu 
+
+```{r}
+# Chuyển InvoiceDate thành kiểu Date
+df$InvoiceDate <- as.Date(df$InvoiceDate)
+str(df)
+```
+
+```{r}
+# 1. Gán lại df gốc
+df_cleaned <- df
+# Loại bỏ toàn bộ dòng chứa bất kỳ ký tự KHÔNG PHẢI số (0–9)
+df_cleaned <- df_cleaned[grepl("^[0-9]+$", df_cleaned$InvoiceNo), ]
+
+```
+
+```{r}
+# Kiểm tra còn chữ cái không?
+any(grepl("[A-Za-z]", df_cleaned$InvoiceNo))  # Phải trả FALSE
+
+# Kiểm tra còn ký tự đặc biệt không?
+any(grepl("[^0-9]", df_cleaned$InvoiceNo))    # Phải trả FALSE
+```
+
+```{r}
+# Tạo điều kiện giữ lại các StockCode hợp lệ:
+mask <- grepl("^\\d{5,6}$", df_cleaned$StockCode) |           # Toàn số, 5-6 chữ số
+        grepl("^\\d{5}[A-Za-z]$", df_cleaned$StockCode) |     # 5 số + 1 chữ cái
+        df_cleaned$StockCode == "APADSS"                      # Mã đặc biệt
+
+# Áp dụng lọc
+df_cleaned <- df_cleaned[mask, ]
+
+df_cleaned
+```
+```{r}
+sum(is.na(df$CustomerID))  # đếm số dòng bị thiếu
+```
+
+```{r}
+# Xóa các dòng có NA ở cột CustomerID
+df_cleaned <- df_cleaned[!is.na(df_cleaned$CustomerID), ]
+
+nrow(df) - nrow(df_cleaned)  # số dòng đã bị xóa
+
+colSums(is.na(df_cleaned))
+```
+
+```{r}
+# thống kê data sau khi drop na
+summary(df_cleaned)
+
+```
+
+**Nhận xét tổng quan về dữ liệu df_cleaned:**
+
+
+
+
+```{r}
+# kiểm tra giá trị bằng 0 của col 'UnitPrice'
+sum(df_cleaned$UnitPrice == 0)
+# chỉ lấy giá trị khác 0 
+df_cleaned <- df_cleaned[df_cleaned$UnitPrice > 0, ]
+#Kiểm tra 
+summary(df_cleaned)
+
+```
+
+```{r}
+#Tính tỷ lệ phần trăm số dòng còn lại trong df_cleaned so với tổng số dòng ban đầu trong df.
+sprintf("%.2f%%", nrow(df_cleaned) / nrow(df) * 100)
+```
+
+
+```{r}
+##Trực quan hóa
+# Số dòng ban đầu và sau khi làm sạch
+total_rows <- nrow(df)
+cleaned_rows <- nrow(df_cleaned)
+removed_rows <- total_rows - cleaned_rows
+# Tạo dataframe để vẽ
+summary_df <- data.frame(
+  status = c("Giữ lại", "Đã loại"),
+  quantity = c(cleaned_rows, removed_rows)
+)
+# Vẽ biểu đồ
+barplot(
+  summary_df$quantity,
+  names.arg = summary_df$status,
+  col = c("skyblue", "salmon"),
+  main = "So sánh số dòng trước và sau khi làm sạch",
+  ylab = "Số dòng",
+  ylim = c(0, max(summary_df$quantity) * 1.1)
+)
+# Hiển thị số liệu trên cột
+text(
+  x = c(1, 2),
+  y = summary_df$quantity,
+  labels = summary_df$quantity,
+  pos = 3,
+  cex = 1.2
+)
+```
+
+##Analysis RFM 
+
+```{r}
+# tạo cột tổng chi tiêu làm Monetary (tổng chi tiêu)
+df_cleaned$SalesLineTotal <- df_cleaned$Quantity * df_cleaned$UnitPrice
+# Hiển thị kết quả
+print(df_cleaned, width = Inf)
+```
+
+
+```{r}
+aggregated_df <- summarise(
+  group_by(df_cleaned, CustomerID),
+  MonetaryValue = sum(SalesLineTotal, na.rm = TRUE),
+  Frequency = n_distinct(InvoiceNo),
+  LastInvoiceDate = max(InvoiceDate)
+)
+```
+
+
+```{r}
+# Tính Recency
+analysis_date <- as.Date(max(df_cleaned$InvoiceDate))
+aggregated_df$Recency <- as.numeric(analysis_date - aggregated_df$LastInvoiceDate)
+
+print(aggregated_df, width = Inf)
+
+```
+
+```{r}
+# Thiết lập bố cục 1 hàng 3 biểu đồ
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))  # 1 dòng, 3 cột
+
+# Biểu đồ 1: Monetary Value
+hist(aggregated_df$MonetaryValue,
+     breaks = 10,
+     col = "skyblue",
+     border = "red",
+     main = "Monetary Value Distribution",
+     xlab = "Monetary Value",
+     ylab = "Count")
+
+# Biểu đồ 2: Frequency
+hist(aggregated_df$Frequency,
+     breaks = 10,
+     col = "lightgreen",
+     border = "red",
+     main = "Frequency Distribution",
+     xlab = "Frequency",
+     ylab = "Count")
+
+# Biểu đồ 3: Recency
+hist(aggregated_df$Recency,
+     breaks = 20,
+     col = "yellow",
+     border = "red",
+     main = "Recency Distribution",
+     xlab = "Recency",
+     ylab = "Count")
+
+# Reset layout về mặc định (1 biểu đồ/khung)
+par(mfrow = c(1, 1))
+```
+**Nhận xét**
+
+  - **Monetary Value Distribution (Giá trị chi tiêu):**
+  
+      * Phân bố rất lệch phải (right-skewed).
+
+      * Phần lớn khách hàng có tổng chi tiêu (Monetary) rất thấp (đa số < 10,000).
+
+      * Chỉ một số ít khách chi tiêu rất cao (có giá trị tới 250,000+), tạo ra outlier rất mạnh.
+      
+  - **Kết luận:**
+    
+      * Tập khách hàng có sự khác biệt lớn về giá trị – phù hợp để phân nhóm (clustering).
+    
+      * Nên xem xét log-transform hoặc winsorizing trước khi dùng cho mô hình.
+    
+  - **Frequency Distribution (Tần suất mua hàng):**
+
+      * Cực kỳ lệch phải: gần như tất cả khách chỉ mua 1–2 lần.
+
+      * Rất ít khách hàng mua từ 10 lần trở lên (hiếm có >50).
+
+      * Một vài giá trị lớn (outlier) vẫn tồn tại.
+
+  - **Kết luận:**
+  
+      * Phần lớn khách hàng không trung thành → chỉ mua 1 lần.
+
+      * Rất cần phát triển nhóm khách “frequent buyers” (nếu muốn tăng CLV).
+
+      * Có thể tạo chính sách ưu đãi tần suất cho nhóm tiềm năng.
+
+  - **Recency Distribution (Khoảng thời gian kể từ lần mua gần nhất):**
+
+      * Phân bố cũng lệch phải nhưng nhẹ hơn.
+
+      * Nhiều khách hàng mới mua gần đây (Recency thấp) → tập trung ở khoảng 0–50 ngày.
+
+      * Càng xa (Recency cao), số lượng khách giảm dần → biểu hiện tốt.
+
+  - **Kết luận:**
+  
+      * Có nhiều khách hàng mới hoạt động gần đây.
+
+      * Cơ hội rất tốt để chạy lại remarketing hoặc tái kích hoạt khách cũ.
+
+      * Tập khách cũ (Recency > 250) có thể là khách rời bỏ.
+      
+**kiểm tra outlier**
+
+```{r}
+data_outliers <- aggregated_df
+```
+
+```{r}
+# Đặt layout: 1 hàng, 3 biểu đồ
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+
+# Boxplot 1: MonetaryValue
+boxplot(aggregated_df$MonetaryValue,
+        col = "skyblue",
+        main = "Monetary Value Boxplot",
+        xlab = "Monetary Value")
+
+# Boxplot 2: Frequency
+boxplot(aggregated_df$Frequency,
+        col = "lightgreen",
+        main = "Frequency Boxplot",
+        xlab = "Frequency")
+
+# Boxplot 3: Recency
+boxplot(aggregated_df$Recency,
+        col = "salmon",
+        main = "Recency Boxplot",
+        xlab = "Recency")
+
+# Reset lại layout về mặc định (1 biểu đồ)
+par(mfrow = c(1, 1))
+```
+
+
+```{r}
+# Tính Q1, Q3 và IQR cho MonetaryValue
+M_Q1 <- quantile(aggregated_df$MonetaryValue, 0.25)
+M_Q3 <- quantile(aggregated_df$MonetaryValue, 0.75)
+M_IQR <- M_Q3 - M_Q1
+
+# Lọc các dòng là outlier
+monetary_outliers_df <- aggregated_df[
+  aggregated_df$MonetaryValue < (M_Q1 - 1.5 * M_IQR) |
+  aggregated_df$MonetaryValue > (M_Q3 + 1.5 * M_IQR),
+]
+
+# Xem mô tả dữ liệu outlier
+summary(monetary_outliers_df)
+
+```
+
+```{r}
+# Tính Q1, Q3 và IQR cho Frequency
+F_Q1 <- quantile(aggregated_df$Frequency, 0.25)
+F_Q3 <- quantile(aggregated_df$Frequency, 0.75)
+F_IQR <- F_Q3 - F_Q1
+
+# Lọc các dòng là outlier theo Frequency
+frequency_outliers_df <- aggregated_df[
+  aggregated_df$Frequency < (F_Q1 - 1.5 * F_IQR) |
+  aggregated_df$Frequency > (F_Q3 + 1.5 * F_IQR),
+]
+
+# Thống kê dữ liệu outlier
+summary(frequency_outliers_df)
+
+```
+
+```{r}
+# Loại bỏ outlier bằng cách giữ lại các dòng KHÔNG nằm trong monetary và frequency outliers
+
+# Lấy chỉ số hàng (index) cần loại bỏ
+outlier_indices <- union(
+  which(aggregated_df$MonetaryValue < (M_Q1 - 1.5 * M_IQR) | aggregated_df$MonetaryValue > (M_Q3 + 1.5 * M_IQR)),
+  which(aggregated_df$Frequency < (F_Q1 - 1.5 * F_IQR) | aggregated_df$Frequency > (F_Q3 + 1.5 * F_IQR))
+)
+
+# Giữ lại các dòng không nằm trong chỉ số outlier
+non_outliers_df <- aggregated_df[-outlier_indices, ]
+
+# Kiểm tra lại
+summary(non_outliers_df)
+
+```
+
+
+```{r}
+# Trực quan sau khi loại bỏ 
+# Chia khung hình ra 1 dòng 3 biểu đồ
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+
+# Boxplot 1: Monetary Value
+boxplot(non_outliers_df$MonetaryValue,
+        col = "skyblue",
+        main = "Monetary Value Boxplot",
+        xlab = "Monetary Value")
+
+# Boxplot 2: Frequency
+boxplot(non_outliers_df$Frequency,
+        col = "lightgreen",
+        main = "Frequency Boxplot",
+        xlab = "Frequency")
+
+# Boxplot 3: Recency
+boxplot(non_outliers_df$Recency,
+        col = "salmon",
+        main = "Recency Boxplot",
+        xlab = "Recency")
+
+# Reset lại layout về mặc định
+par(mfrow = c(1, 1))
+```
+
+
+```{r}
+# Vẽ scatter plot 3D
+plot_ly(non_outliers_df,
+        x = ~MonetaryValue,
+        y = ~Frequency,
+        z = ~Recency,
+        type = 'scatter3d',
+        mode = 'markers',
+        marker = list(size = 2, color = 'blue')) %>%
+  layout(
+    title = list(text = "3D Scatter Plot of Customer Data"),
+    scene = list(
+      xaxis = list(title = "Monetary"),
+      yaxis = list(title = "Frequency"),
+      zaxis = list(title = "Recency")
+    )
+  )
+
+```
+```{r}
+# Chuẩn hóa các cột MonetaryValue, Frequency, Recency
+scaled_data <- scale(non_outliers_df[, c("MonetaryValue", "Frequency", "Recency")])
+```
+
+```{r}
+# Chuyển matrix chuẩn hóa về data.frame
+scaled_data_df <- as.data.frame(scaled_data)
+
+# Đặt lại tên cột
+colnames(scaled_data_df) <- c("MonetaryValue", "Frequency", "Recency")
+
+# Gán lại rownames nếu cần giữ index
+rownames(scaled_data_df) <- rownames(non_outliers_df)
+# Xem kết quả
+head(scaled_data_df)
+```
+
+```{r}
+plot_ly(scaled_data_df,
+        x = ~MonetaryValue,
+        y = ~Frequency,
+        z = ~Recency,
+        type = "scatter3d",
+        mode = "markers",
+        marker = list(size = 2, color = 'blue')) %>%
+  layout(title = "3D Scatter Plot of Scaled Customer Data")
+```
+
+# K-MEANS
+
+```{r}
+
+# Thiết lập
+max_k <- 15
+k_values <- 2:max_k
+
+inertia <- numeric(length(k_values))
+silhouette_scores <- numeric(length(k_values))
+
+for (i in seq_along(k_values)) {
+  k <- k_values[i]
+  set.seed(42)
+  kmeans_model <- kmeans(scaled_data_df, centers = k, nstart = 25, iter.max = 1000)
+
+  # inertia
+  inertia[i] <- kmeans_model$tot.withinss
+
+  # silhouette
+  sil <- silhouette(kmeans_model$cluster, dist(scaled_data_df))
+  silhouette_scores[i] <- mean(sil[, 3])
+}
+
+# Tạo dataframe cho ggplot
+plot_df <- data.frame(
+  k = k_values,
+  Inertia = inertia,
+  Silhouette = silhouette_scores
+)
+
+# Biểu đồ Elbow
+p1 <- ggplot(plot_df, aes(x = k, y = Inertia)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "KMeans Inertia for Different Values of k",
+       x = "Number of Clusters (k)", y = "Inertia") +
+  theme_minimal() +
+  scale_x_continuous(breaks = k_values)
+
+# Biểu đồ Silhouette
+p2 <- ggplot(plot_df, aes(x = k, y = Silhouette)) +
+  geom_line(color = "orange") +
+  geom_point(color = "orange") +
+  labs(title = "Silhouette Scores for Different Values of k",
+       x = "Number of Clusters (k)", y = "Silhouette Score") +
+  theme_minimal() +
+  scale_x_continuous(breaks = k_values)
+
+# Hiển thị cả hai biểu đồ cạnh nhau
+grid.arrange(p1, p2, ncol = 2)
+
+```
+
+**Nhận xét:**
+
+  - **Biểu đồ bên trái – Elbow Method (Inertia):**
+  
+      * Giá trị Inertia giảm mạnh từ k = 2 đến k = 4, sau đó bắt đầu giảm chậm lại
+      tạo thành một “khuỷu tay” tại k = 4.
+
+      * Đây là dấu hiệu rõ ràng của số cụm tối ưu, vì tại điểm này mô hình đã gom        được phần lớn thông tin phân tán và việc tăng thêm cụm sau đó không làm giảm       Inertia đáng kể nữa.
+    
+  - **Biểu đồ bên phải – Silhouette Score:**
+    
+      * Silhouette đạt giá trị cao nhất ở k = 2 và k = 3 (~0.45), sau đó giảm dần.
+
+      * Tuy nhiên, k = 4 vẫn duy trì mức Silhouette hợp lý (~0.40), cho thấy phân        cụm vẫn đủ rõ nét mà không quá đơn giản.
+
+      * Việc chọn k = 4 là sự cân bằng giữa độ rõ ràng và độ chi tiết của các cụm        khách hàng.
+      
+**Kết luận:**
+
+Dựa trên cả hai biểu đồ, số lượng cụm tối ưu được lựa chọn là k = 4. Đây là lựa chọn hợp lý để tiến hành phân cụm K-Means trong bước tiếp theo, vừa đảm bảo tính phân biệt giữa các cụm, vừa tránh tình trạng quá phân mảnh hoặc đơn giản hóa mô hình.
+
+```{r}
+library(scatterplot3d)  # vẽ 3D scatter
+
+# Huấn luyện mô hình KMeans
+set.seed(42)
+kmeans_model <- kmeans(scaled_data_df, centers = 4, nstart = 25, iter.max = 1000)
+
+# Gán nhãn cụm vào non_outliers_df
+non_outliers_df$Cluster <- kmeans_model$cluster
+
+# Màu thủ công cho từng cụm
+cluster_colors <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728")
+color_map <- cluster_colors[non_outliers_df$Cluster]
+
+plot_ly(non_outliers_df, 
+        x = ~MonetaryValue, 
+        y = ~Frequency, 
+        z = ~Recency, 
+        color = ~factor(Cluster),
+        colors = cluster_colors,
+        type = 'scatter3d',
+        mode = 'markers',
+        marker = list(size = 2)) %>%  
+  layout(title = "3D Scatter Plot of Customer Data by Cluster")
+
+```
+
+**Nhận xét:**
+
+Biểu đồ 3D thể hiện sự phân bố của các khách hàng theo 3 chiều **Recency**, **Frequency**, và **MonetaryValue**, được phân cụm bằng thuật toán K-Means với số cụm k = 4.
+
+- Nhìn chung, các cụm được tách biệt tương đối rõ, đặc biệt là theo trục Monetary và Frequency.
+
+- **Cụm màu đỏ** (Cluster 4) tập trung ở vùng Recency cao, Frequency thấp, Monetary thấp -> Đây có thể là nhóm khách hàng không còn mua hàng gần đây và giá trị thấp.
+
+- **Cụm màu xanh lam** (Cluster 1) nằm ở đáy biểu đồ, với Recency thấp, Frequency cao và Monetary rất cao → nhóm khách hàng trung thành và có giá trị lớn.
+
+- Các cụm còn lại nằm xen giữa, cho thấy các nhóm khách hàng có hành vi mua hàng trung bình hoặc không đều đặn.
+
+**Ý nghĩa:**
+
+  - Việc trực quan hóa dữ liệu RFM theo không gian 3 chiều giúp kiểm chứng lại hiệu   quả phân cụm.
+
+  - Doanh nghiệp có thể dễ dàng xác định nhóm khách hàng tiềm năng để duy trì và   nhóm không hiệu quả để tiết giảm chi phí tiếp thị.
+
+  - Đây là bước quan trọng trong các chiến lược **phân khúc thị trường** và **giữ   chân khách hàng**.
+
+
+```{r}
+# Đảm bảo Cluster là factor
+non_outliers_df$Cluster <- as.factor(non_outliers_df$Cluster)
+
+# Tạo bảng màu tương ứng như Python
+cluster_colors <- c("0" = "#1f77b4", "1" = "#ff7f0e", "2" = "#2ca02c", "3" = "#d62728")
+
+# Violin plot cho Recency
+ggplot(non_outliers_df, aes(x = Cluster, y = Recency, fill = Cluster)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, color = "black", fill = "white") +
+  labs(title = "Phân bố Recency theo cụm", y = "Recency") +
+  theme_minimal()
+
+# Violin plot cho Frequency
+ggplot(non_outliers_df, aes(x = Cluster, y = Frequency, fill = Cluster)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, color = "black", fill = "white") +
+  labs(title = "Phân bố Frequency theo cụm", y = "Frequency") +
+  theme_minimal()
+
+# Tương tự cho Monetary
+ggplot(non_outliers_df, aes(x = Cluster, y = MonetaryValue, fill = Cluster)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, color = "black", fill = "white") +
+  labs(title = "Phân bố Monetary theo cụm", y = "Monetary Value") +
+  theme_minimal()
+```
+
+**Nhận xét: Phân bố Recency**
+
+  * Cụm 1 (màu đỏ): Có giá trị Recency rất thấp, phân bố tập trung quanh 10–30       ngày, cho thấy đây là nhóm khách hàng vừa mới mua hàng gần đây nhất -> nhóm
+  rất tiềm năng cần được giữ chân.
+      
+  * Cụm 2 (màu xanh lá): Recency trải rộng từ thấp đến khoảng 100 ngày, nhưng        phần lớn tập trung dưới 50 -> nhóm khách hàng có mua gần đây, nhưng không đều
+  đặn bằng cụm 1.
+
+  * Cụm 3 (màu xanh dương): Tương tự cụm 1, nhưng phân bố hơi rộng hơn -> vẫn        là khách hàng mới tương tác gần đây, có khả năng mua lại nếu chăm sóc tốt.
+
+  * Cụm 4 (màu tím): Có Recency rất cao, phần lớn nằm quanh 200–350 ngày -> đây      là nhóm khách hàng đã lâu không quay lại, có nguy cơ rời bỏ thương hiệu, cần       có chính sách tái tiếp cận hoặc remarketing.
+      
+**Ý nghĩa:**
+  
+  - Biểu đồ này giúp xác định mức độ “gần đây” của các giao dịch theo từng nhóm        khách hàng. Qua đó:
+
+    * Cụm 1 & 3 -> nên ưu tiên chăm sóc, upsell hoặc tặng ưu đãi đặc biệt.
+
+    * Cụm 4 -> cần có chiến dịch tái tương tác, khuyến mãi “quay lại”, email            marketing hoặc tặng mã giảm giá.
+
+    * Phân tích Recency đóng vai trò quan trọng trong việc dự đoán hành vi mua         hàng sắp tới.
+
+**Nhận xét: Phân bố Frequency:**
+
+  * Cụm 1 (màu đỏ): Có giá trị Frequency cao nhất trong các cụm, phần lớn dao động
+  từ 6 đến 9, thậm chí có điểm lên đến 12.
+
+  * Đây là nhóm mua hàng nhiều lần, thường xuyên quay lại -> nhóm trung thành, có
+  mức độ gắn kết cao với doanh nghiệp.
+
+  * Cụm 2 (màu xanh lá): Tần suất mua hàng thấp, hầu hết dao động trong khoảng 1
+  đến 3 lần.
+
+  * Nhóm này có thể là khách hàng mua thử, hoặc chỉ tương tác ngắn hạn -> cần được
+  kích thích mua lại.
+
+  * Cụm 3 (màu xanh dương): Có Frequency ở mức trung bình, phổ biến trong khoảng
+  3–6 lần.
+
+  * Đây là nhóm tiềm năng – chưa thực sự trung thành, nhưng có dấu hiệu mua lặp lại
+  -> nên được nuôi dưỡng.
+
+  * Cụm 4 (màu tím): Có Frequency rất thấp, phần lớn chỉ 1–2 lần mua.
+
+  * Kết hợp với Recency cao (từ biểu đồ trước) -> có khả năng là nhóm mua một lần
+  rồi rời bỏ, ít giá trị.
+  
+**Ý nghĩa:**
+
+  - Biểu đồ giúp doanh nghiệp dễ dàng nhận biết nhóm khách nào có hành vi mua lặp
+  lại cao để tập trung chăm sóc và giữ chân.
+
+  - Các cụm có Frequency thấp nhưng Recency cũng thấp (như cụm 2) → có thể vẫn còn
+  cơ hội chuyển hóa nếu tiếp thị đúng lúc.
+
+  - Kết hợp phân tích Frequency với Recency sẽ giúp xác định tệp khách hàng trung
+  thành vs khách “một lần rồi thôi”, từ đó ra quyết định marketing hiệu quả hơn.
+
+**Nhận xét: Phân bố Monetary:**
+
+  * Cụm 1 (màu đỏ): Đây là nhóm có giá trị Monetary cao nhất, phần lớn dao động từ
+  2.000 đến gần 4.000.
+
+  * Đây chắc chắn là nhóm khách hàng có giá trị lớn nhất, thường xuyên chi tiêu
+  cao, đóng góp nhiều cho doanh thu -> nhóm VIP hoặc khách hàng trung thành nhất.
+
+  * Cụm 2 (màu xanh lá): Monetary rất thấp, phần lớn chỉ ở mức 200 – 600.
+
+  * Đây có thể là nhóm khách ít mua và mua với giá trị thấp, có thể là khách vãng
+  lai hoặc mới mua thử.
+
+  * Cụm 3 (màu xanh dương): Có mức chi tiêu ở mức trung bình khá, trải rộng từ
+  khoảng 800 – 2500, một số điểm còn lên cao hơn.
+
+  * Đây là nhóm khách có tiềm năng, nếu được thúc đẩy đúng cách có thể chuyển hóa
+  thành khách hàng trung thành.
+
+  * Cụm 4 (màu tím):
+  Có giá trị Monetary thấp nhất trong tất cả các cụm, phần lớn dao động từ dưới 500
+  đến khoảng 800.
+
+  * Kết hợp với Recency cao và Frequency thấp -> nhóm đã lâu không quay lại, mua
+  ít, không thu lợi cao.
+  
+**Ý nghĩa:**
+
+  - Biểu đồ Monetary giúp doanh nghiệp xác định giá trị tài chính của từng nhóm
+  khách hàng.
+  
+  - Cụm 1 nên được xem là tệp khách hàng ưu tiên cao nhất, có thể áp dụng chiến
+  lược chăm sóc đặc biệt như VIP member, thẻ tích điểm, quà tặng cá nhân,...
+
+  - Cụm 3 là nhóm có khả năng phát triển, nếu được tiếp thị và chăm sóc hợp lý.
+
+  - cụm 4 nên được đánh giá lại chi phí giữ chân để tránh lãng phí nguồn lực.
+
+**Kết luận:**
+
+Sau khi phân tích trực quan từng thành phần của mô hình RFM theo từng cụm khách hàng, có thể rút ra các nhận định quan trọng như sau:
+
+- Cụm 1 (màu đỏ):
+  * Đây là nhóm khách hàng tốt nhất:
+
+  * Mua gần đây (Recency thấp),
+
+  * Mua nhiều lần (Frequency cao),
+
+  * Chi tiêu lớn (Monetary cao).
+  
+-> Đây là nhóm khách hàng trung thành, có giá trị cao, cần được ưu tiên chăm sóc, giữ chân và tạo các chương trình khuyến khích tái mua.
+
+- Cụm 2 (màu xanh lá):
+
+  * Có tần suất mua thấp, giá trị đơn hàng nhỏ và thời gian mua gần đây tương đối
+  ổn.
+  
+-> Nhóm mới bắt đầu tương tác hoặc khách hàng mua thử. Doanh nghiệp có thể tập trung nuôi dưỡng nhóm này bằng chương trình chăm sóc khuyến mãi, ưu đãi.
+
+- Cụm 3 (màu xanh dương):
+
+  * Mua không quá thường xuyên nhưng có chi tiêu trung bình khá và mua tương đối
+  gần đây.
+  
+-> Là nhóm khách hàng tiềm năng, có thể trở thành trung thành nếu được chăm sóc và có các chiến lược tiếp thị phù hợp.
+
+- Cụm 4 (màu tím):
+
+  * Giao dịch đã lâu (Recency cao), tần suất mua rất thấp và giá trị chi tiêu nhỏ.
+  
+-> Đây là nhóm khách hàng không hoạt động, có thể đã rời bỏ thương hiệu. Cần xem xét chiến lược tiếp cận lại hoặc loại khỏi các chiến dịch ưu tiên để tiết kiệm nguồn lực.
+
+```{r}
+table(non_outliers_df$Cluster) #Số lượng khách hàng từng cụm
+```
+
+```{r}
+# Tìm chỉ số giao nhau giữa 2 tập outliers
+overlap_indices <- intersect(rownames(monetary_outliers_df), rownames(frequency_outliers_df))
+
+# Tạo tập chỉ là Monetary outliers
+monetary_only_outliers <- monetary_outliers_df[!rownames(monetary_outliers_df) %in% overlap_indices, ]
+monetary_only_outliers$Cluster <- -1
+
+# Tạo tập chỉ là Frequency outliers
+frequency_only_outliers <- frequency_outliers_df[!rownames(frequency_outliers_df) %in% overlap_indices, ]
+frequency_only_outliers$Cluster <- -2
+
+# Tạo tập là outliers của cả hai
+monetary_and_frequency_outliers <- monetary_outliers_df[rownames(monetary_outliers_df) %in% overlap_indices, ]
+monetary_and_frequency_outliers$Cluster <- -3
+
+# Gộp tất cả lại
+outlier_clusters_df <- rbind(
+  monetary_only_outliers,
+  frequency_only_outliers,
+  monetary_and_frequency_outliers
+)
+
+# Kết quả
+head(outlier_clusters_df)
+
+```
+
+```{r}
+# Kiểm tra
+table(outlier_clusters_df$Cluster)
+```
+
+
+```{r}
+# Chuyển Cluster thành factor để dễ gán màu
+outlier_clusters_df$Cluster <- factor(outlier_clusters_df$Cluster)
+
+# Tạo bảng màu tương đương cluster_colors
+cluster_colors <- c("-1" = "#9467bd", "-2" = "#8c564b", "-3" = "#e377c2")
+
+# Violin plot: MonetaryValue
+ggplot(outlier_clusters_df, aes(x = Cluster, y = MonetaryValue, fill = Cluster)) +
+  geom_violin(trim = FALSE) +
+  scale_fill_manual(values = cluster_colors) +
+  labs(title = "Monetary Value by Cluster", y = "Monetary Value") +
+  theme_minimal()
+
+# Violin plot: Frequency
+ggplot(outlier_clusters_df, aes(x = Cluster, y = Frequency, fill = Cluster)) +
+  geom_violin(trim = FALSE) +
+  scale_fill_manual(values = cluster_colors) +
+  labs(title = "Frequency by Cluster", y = "Frequency") +
+  theme_minimal()
+
+# Violin plot: Recency
+ggplot(outlier_clusters_df, aes(x = Cluster, y = Recency, fill = Cluster)) +
+  geom_violin(trim = FALSE) +
+  scale_fill_manual(values = cluster_colors) +
+  labs(title = "Recency by Cluster", y = "Recency") +
+  theme_minimal()
+
+```
+**Nhận xét: Recency của các nhóm Outliers:**
+
+  - Cả hai cụm đều có giá trị Recency thấp, tức là phần lớn khách hàng trong hai
+  nhóm này mua hàng gần đây, thường xuyên quay lại trong thời gian gần phân tích
+  (Recency ~ 0–50 ngày là phổ biến).
+
+  - Cluster -3: Recency phân bố cực thấp và nghiêng về phía 0 -> những khách hàng
+  gần như vừa mới mua hàng, kết hợp với tần suất cao và chi tiêu lớn -> đây là tệp
+  khách hàng siêu trung thành.
+
+  - Cluster -1: Cũng có Recency khá thấp, nhưng phân bố dàn rộng hơn một chút ->
+  một số khách tuy chi nhiều nhưng có thể đã không mua trong thời gian dài.
+
+**Ý nghĩa:**
+
+  - Cluster -3: Hoàn hảo cho chương trình tri ân VIP hiện tại.
+
+  - Cluster -1: Nên được tiếp cận bằng chiến dịch kêu gọi quay lại như ưu đãi cho
+  đơn hàng tiếp theo, voucher nếu mua lại trong 7 ngày,…
+  
+**Nhận xét: Frequency của các nhóm Outliers:**
+
+  - Cluster -3: Phân bố Frequency rất rộng, có nhiều điểm lên tới trên 200 lượt
+  mua, phần lớn tập trung từ 10–50 lần giao dịch.
+
+  - Đây là nhóm mua nhiều – rất thường xuyên, kết hợp với giá trị chi tiêu cao -> thể hiện đặc trưng của khách hàng trung thành lâu năm hoặc doanh nghiệp mua sỉ định kỳ.
+
+  - Cluster -1: Frequency thấp hơn đáng kể, hầu hết khách hàng chỉ mua khoảng 5–20
+  lần, rất ít trường hợp vượt qua 50.
+
+  - Nhóm này không mua thường xuyên, nhưng mỗi lần mua có giá trị cao -> khả năng là khách mua ít nhưng sản phẩm có giá trị lớn ví dụ: khách doanh nghiệp, quà tặng,...
+
+**Ý nghĩa:**
+
+  - Cluster -3 là nhóm cực kỳ quan trọng để duy trì lâu dài. Có thể áp dụng các chương trình như:
+
+    * Ưu đãi theo cấp bậc (tích điểm)
+
+    * Tặng thêm sản phẩm
+
+    * Ưu tiên hỗ trợ
+
+  - Cluster -1 có thể kích hoạt tăng tần suất mua bằng:
+
+    * Gợi ý sản phẩm liên quan
+
+    * Ưu đãi cho đơn tiếp theo trong thời gian ngắn
+
+    * Ưu đãi combo/quà tặng khi mua lại trong 30 ngày
+
+**Nhận xét: Monetary của các nhóm Outliers:**
+
+  - Cả hai cụm đều có Monetary Value rất cao, với một số khách hàng thậm chí chi
+  tiêu lên tới trên 200.000 đơn vị tiền tệ – đây là những ngoại lệ thực sự trong
+  tập khách hàng.
+
+  - Cluster -3:
+
+    * Mật độ phân bố rộng và dày hơn quanh mức từ 0 đến 20.000, cho thấy nhóm này
+    có giá trị đơn hàng cao.
+
+    * Dù có nhiều điểm outlier mạnh, nhưng phần lớn khách vẫn tập trung ở khoảng từ
+    5.000–10.000.
+
+  - Cluster -1:
+
+    * Phân bố hẹp hơn một chút so với cluster -3, nhưng vẫn có một vài khách chi
+    tiêu rất lớn.
+
+    * Đặc trưng là mua ít lần nhưng mỗi lần chi cực nhiều (ví dụ doanh nghiệp,...).
+    
+**Ý nghĩa:**
+
+  - Cluster -3: Đây là khách hàng vàng, rất trung thành và có giá trị lâu dài ->
+  xứng đáng nhận các ưu đãi đặc biệt.
+
+  - Cluster -1: Dù không thường xuyên mua nhưng mỗi lần mua lại chi tiêu cực lớn ->
+  nên có các chiến lược khuyến khích mua định kỳ, ưu đãi đặc biệt theo mỗi đơn lớn.
+
+**Kết luận:**
+
+Dựa trên ba biểu đồ phân tích Recency – Frequency – Monetary Value, có thể đưa ra kết luận sau:
+
+  - Cluster -3 (có cả Outliers theo Monetary và Frequency cao):
+  
+    * Là nhóm khách hàng vừa chi tiêu lớn, vừa mua thường xuyên, và phần lớn đều có     Recency thấp (mua gần đây).
+
+    * Có giá trị vượt trội rõ rệt trong cả ba chiều -> nhóm khách hàng VIP,
+    đóng vai trò rất quan trọng với doanh thu.
+
+  - Cluster -1 (chỉ outlier theo Monetary):
+  
+    * Nhóm khách hàng mua không nhiều lần, nhưng mỗi lần đều chi rất mạnh tay.
+
+    * Recency có thể không quá thấp -> một số khách đã lâu không quay lại, cần
+    chiến lược phù hợp.
+
+    * Phù hợp với các chương trình ưu đãi đơn hàng lớn, tặng voucher cho lần mua
+    tiếp theo, hoặc chăm sóc cá nhân hoá theo giá trị giao dịch.
+
+
+```{r}
+# Tạo vector gán nhãn cluster
+cluster_labels <- c(
+  "0" = "RETAIN",       # Giữ chân khách hàng hiện tại
+  "1" = "RE-ENGAGE",    # Tương tác lại với khách hàng đã rời đi
+  "2" = "NURTURE",      # Chăm sóc khách hàng tiềm năng
+  "3" = "REWARD",       # Thưởng cho khách hàng trung thành
+  "4" = "EXPLORE",      # Nhóm khách hàng chưa có hành vi nổi bật rõ ràng
+  "-1" = "PAMPER",      # Chiều chuộng khách hàng VIP
+  "-2" = "UPSELL",      # Đề xuất mua thêm
+  "-3" = "DELIGHT"      # Trải nghiệm xuất sắc
+)
+```
+
+```{r}
+# Gộp 2 dataframe lại theo hàng (giống pd.concat)
+full_clustering_df <- rbind(non_outliers_df, outlier_clusters_df)
+full_clustering_df$ClusterLabel <- cluster_labels[as.character(full_clustering_df$Cluster)]
+# Xem kết quả
+head(full_clustering_df)
+
+```
+
+```{r}
+# Kiểm tra số hàng
+nrow(full_clustering_df)
+
+# Kiểm tra các nhóm trong Cluster
+table(full_clustering_df$Cluster)
+
+# Kiểm tra nếu có cột ClusterLabel đã gán
+table(full_clustering_df$ClusterLabel)
+
+```
+
+```{r}
+# Gán nhãn cụm bằng named vector cluster_labels
+full_clustering_df$ClusterLabel <- cluster_labels[as.character(full_clustering_df$Cluster)]
+
+# Xem ngẫu nhiên 10 dòng
+full_clustering_df[sample(nrow(full_clustering_df), 10), ]
+
+```
+
+```{r}
+# Tính số lượng khách mỗi cụm
+cluster_counts <- full_clustering_df %>%
+  count(ClusterLabel, name = "CustomerCount")
+```
+
+```{r}
+# Tính trung bình các biến
+feature_means <- full_clustering_df %>%
+  mutate(MonetaryValuePer100 = MonetaryValue / 100) %>%
+  group_by(ClusterLabel) %>%
+  summarise(
+    Recency = mean(Recency, na.rm = TRUE),
+    Frequency = mean(Frequency, na.rm = TRUE),
+    `MonetaryValue per 100` = mean(MonetaryValuePer100, na.rm = TRUE)
+  ) %>%
+  pivot_longer(cols = c("Recency", "Frequency", "MonetaryValue per 100"),
+               names_to = "Feature", values_to = "MeanValue")
+```
+
+```{r}
+# Merge lại và sắp xếp giảm dần theo CustomerCount
+plot_df <- left_join(feature_means, cluster_counts, by = "ClusterLabel") %>%
+  mutate(ClusterLabel = factor(ClusterLabel, levels = cluster_counts %>%
+                                 arrange(desc(CustomerCount)) %>%
+                                 pull(ClusterLabel)))
+```
+
+```{r}
+# Vẽ biểu đồ kết hợp
+library(viridis)
+plot_df$Feature <- factor(plot_df$Feature, levels = c("Recency", "Frequency", "MonetaryValue per 100"))
+
+ggplot(plot_df, aes(x = ClusterLabel)) +
+  # Biểu đồ cột số lượng KH với viridis
+  geom_col(aes(y = CustomerCount, fill = ClusterLabel), width = 0.6) +
+  scale_fill_viridis(discrete = TRUE, option = "D") +
+  scale_y_continuous(
+    name = "Number of Customers",
+    sec.axis = sec_axis(~., name = "Average Feature Values")
+  ) +
+  # Biểu đồ đường trung bình các feature
+  geom_line(aes(y = MeanValue, color = Feature, group = Feature), size = 1.2) +
+  geom_point(aes(y = MeanValue, color = Feature), size = 2) +
+  labs(
+    title = "Cluster Distribution with Average Feature Values",
+    x = "Cluster Label"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.title.y.left = element_text(color = "black"),
+    axis.title.y.right = element_text(color = "darkgreen"),
+    legend.title = element_blank()
+  )
+```
+
+**Nhận xét: Nhóm NURTURE:**
+
+  - Số lượng nhiều nhất (~5000), Recency cao, Frequency thấp, Monetary thấp
+
+**Ý nghĩa:**
+
+  - Nhóm khách lâu không quay lại, ít mua và chi ít → cần chiến dịch khuyến mãi
+  quay lại, kích hoạt lại tệp ngủ quên.
+
+**Nhận xét: Nhóm EXPLORE:**
+
+  - Recency trung bình, Frequency tăng nhẹ, Monetary tăng
+  
+**Ý nghĩa:**
+
+  - Nhóm đang có dấu hiệu bắt đầu mua lại, cần được thử nghiệm ưu đãi và khuyến
+  khích để nâng cấp hành vi mua.
+
+**Nhận xét: Nhóm REWARD:**
+
+  - Recency thấp, Frequency cao, Monetary tăng rõ
+
+**Ý nghĩa:**
+
+  - Nhóm có hành vi tốt dần lên -> có thể tặng thêm voucher, ưu đãi,...
+  
+**Nhận xét: Nhóm RE-ENGAGE:** 
+
+  - Recency cao, nhưng Frequency và Monetary trước đó cao	
+  
+**Ý nghĩa:**
+
+  - Nhóm từng tốt, nay đã rời bỏ -> đặc biệt quan trọng để thu hút trở lại
+
+**Nhận xét: Nhóm DELIGHT:**
+
+  - Recency thấp, Frequency ổn, Monetary cao	
+
+**Ý nghĩa:**
+
+  - Nhóm đang có trải nghiệm rất tốt, có thể biến thành khách trung thành
+  VIP nếu có chiến lược phù hợp.
+  
+**Nhận xét: Nhóm PAMPER :**  
+
+  - Recency thấp nhất, Frequency rất thấp, Monetary cao nhất	
+
+**Ý nghĩa:**
+
+  - Nhóm ít mua nhưng chi rất mạnh tay mỗi lần mua -> cần dịch vụ chăm sóc cá nhân hóa, quà tặng đặc biệt,...
+
+
+
+
+
+
+
+
+

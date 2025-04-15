@@ -44,7 +44,12 @@ csl: ieee.csl
 
 \noindent
 \begin{minipage}{0.3\textwidth}
-\includegraphics[width=\linewidth]{images/logo_final.png}
+\IfFileExists{images/logo_final.png}{
+  \includegraphics[width=\linewidth]{images/logo_final.png}
+}{
+  \textbf{[Logo bị thiếu]}
+}
+
 \end{minipage}
 \hfill
 \begin{minipage}{0.65\textwidth}
@@ -60,8 +65,8 @@ csl: ieee.csl
 
 \textbf{\Large ĐỒ ÁN MÔN HỌC}\\[1cm]
 
-\textbf{\large \uppercase{ỨNG DỤNG RFM, K-MEANS VÀ DBSCAN TRONG}}\\
-\textbf{\large \uppercase{PHÂN KHÚC KHÁCH HÀNG VÀ TỐI ƯU DOANH THU}}\\[1.2cm]
+\textbf{\large \uppercase{PHÂN CỤM KHÁCH HÀNG BẰNG MÔ HÌNH RFM}}\\
+\textbf{\large \uppercase{KẾT HỢP THUẬT TOÁN K-MEANS VÀ SBSCAN}}\\[1.2cm]
 
 \begin{flushleft}
 \textbf{Ngành:} \textbf{KHOA HỌC DỮ LIỆU}\\
@@ -100,7 +105,7 @@ TP. Hồ Chí Minh, 2025
 \tableofcontents
 \newpage
 
-
+ 
 \newpage
 
 \section*{LỜI CAM ĐOAN}
