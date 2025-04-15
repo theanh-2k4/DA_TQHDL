@@ -1,0 +1,555 @@
+---
+title: "Clean and RFM"
+author: "Nguyễn Nhật Nam"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+    fig_height: 5
+    fig_width: 7
+    highlight: tango
+  html_document:
+    toc: true
+    toc_depth: '3'
+    df_print: paged
+  word_document:
+    toc: true
+    toc_depth: 3
+header-includes:
+- \usepackage{graphicx}
+- \usepackage{fontspec}
+- \setmainfont{Times New Roman}
+---
+```{r}
+Sys.setlocale("LC_ALL", "English_United States.UTF-8")
+
+```
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(tidyverse)
+library(cluster)
+library(factoextra)
+library(lubridate)
+library(scales)
+library(psych)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+```
+**K-means**
+
+```{r fig.cap="Hình 1: Minh họa thuật toán DBSCAN", echo=FALSE, out.width="60%",fig.align="center"}
+knitr::include_graphics("images/1.png")
+```
+
+
+
+# Đọc và khám phá dữ liệu
+
+```{r}
+# Đọc dữ liệu
+df <- read_excel("Online Retail.xlsx")
+head(df)  
+
+```
+
+  InvoiceNo: Mã đơn hàng 
+  
+  StockCode: Mã sản phẩm 
+  
+  Description: Mô tả sản phẩm 
+  
+  Quantity: Số lượng sản phẩm 
+  
+  InvoiceDate: Ngày hóa đơn 
+  
+  UnitPrice: Giá sản phẩm trên mỗi đơn vị 
+  
+  CustomerID: Mã khách hàng 
+  
+  Country: Quốc gia của khách hàng
+  
+
+```{r}
+#Kiểm tra kiểu dữ liệu
+str(df)
+```
+
+
+```{r}
+# thống kê mô tả dữ liệu 
+describe(df)
+
+```
+
+```{r}
+# Thống kê data object 
+summary(df[, sapply(df, is.character)])
+```
+```{r}
+#kiểm tra dữ liệu thiếu 
+colSums(is.na(df))
+```
+
+
+```{r}
+# Kiểm tra giá trị thiếu của CustomerID
+df_na <- df[is.na(df$CustomerID), ]
+print(df_na[sample(nrow(df_na), 10), ], width = Inf)
+```
+
+```{r}
+# Chuyển 'InvoiceNo' về kiểu chuỗi
+df$InvoiceNo <- as.character(df$InvoiceNo)
+#Lọc ra những dòng KHÔNG có InvoiceNo đúng 6 chữ số
+df[!grepl("^\\d{6}$", df$InvoiceNo), ]
+
+#Kiểm tra kí tự khác trong cột InvoiceNo 
+unique(gsub("[0-9]", "", df$InvoiceNo))
+
+# kiểm tra col 'InvoiceNo' có giá trị nào bắt đầu bằng kí tự 'A' ko
+df[grepl("^A", df$InvoiceNo), ]
+```
+```{r}
+# Đảm bảo 'StockCode' là kiểu chuỗi
+df$StockCode <- as.character(df$StockCode)
+# Lọc những dòng KHÔNG phải 5 chữ số hoặc 5 chữ số + chữ cái
+mask <- !(grepl("^\\d{5}$", df$StockCode) | grepl("^\\d{5}[a-zA-Z]+$", df$StockCode))
+# Lấy các StockCode sai định dạng và loại trùng
+invalid_stockcodes <- unique(df$StockCode[mask])
+# Hiển thị kết quả
+print(invalid_stockcodes)
+# Lọc những dòng có chứa chuỗi 'DOT'
+df_with_DOT <- df[grepl("DOT", df$StockCode), ]
+# Hiển thị kết quả
+print(df_with_DOT)
+```
+
+ **Stock Code**
+
+- **Include** 🟢 → Giữ lại để phân tích hoặc clustering.  
+- **Exclude** ❌ → Loại bỏ hoàn toàn, không dùng để phân tích.  
+- **Exclude from clustering** 🚫 → Không dùng để phân nhóm nhưng có thể tham khảo.  
+- **Exclude for now** ⏳ → Tạm loại bỏ, có thể xem xét lại sau. 
+
+- **StockCode** is meant to follow the pattern `[0-9]{5}` but seems to have legit values for `[0-9]{5}[a-zA-Z]+`.  
+&nbsp;&nbsp;&nbsp;&nbsp; **Also contains other values:** 
+
+
+
+| Code             | Description                                                                 | Action                      |
+|------------------|-----------------------------------------------------------------------------|-----------------------------|
+| POST            | Not listed previously, likely a postage-related transaction                | Exclude for now             |
+| D               | Looks valid, represents discount values                                    | Exclude from clustering     |
+| C2              | Carriage transaction - not sure what this means                           | Exclude from clustering     |
+| DOT             | Looks valid, represents postage charges                                   | Exclude from clustering     |
+| M or m          | Looks valid, represents manual transactions                               | Exclude from clustering     |
+| BANK CHARGES or B | Bank charges                                                           | Exclude from clustering     |
+| S               | Samples sent to customer                                                 | Exclude from clustering     |
+| AMAZONFEE       | Looks like fees for Amazon shipping or something                         | Exclude for now             |
+| DCGS0076        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0003        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| gift_0001_40    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| DCGS0070        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| m               | Looks valid, represents manual transactions                              | Exclude from clustering     |
+| gift_0001_50    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| gift_0001_30    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| gift_0001_20    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| DCGS0055        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0072        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0074        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0069        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0057        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGSSBOY        | Possible category or bundle-related code                                 | Exclude for now             |
+| DCGSSGIRL       | Possible category or bundle-related code                                 | Exclude for now             |
+| gift_0001_10    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| PADS            | Looks like a legit stock code for padding                                | Include                     |
+| DCGS0004        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0073        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0071        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0068        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0067        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0066P       | Variant of DCGS, possibly a special category                            | Exclude from clustering     |
+| B               | Bank charges                                                             | Exclude from clustering     |
+| CRUK            | Unknown, possibly a charity-related code                                | Exclude for now             |
+
+
+# Xử lý dữ liệu 
+
+```{r}
+# Chuyển InvoiceDate thành kiểu Date
+df$InvoiceDate <- as.Date(df$InvoiceDate)
+str(df)
+```
+
+```{r}
+# 1. Gán lại df gốc
+df_cleaned <- df
+# Loại bỏ toàn bộ dòng chứa bất kỳ ký tự KHÔNG PHẢI số (0–9)
+df_cleaned <- df_cleaned[grepl("^[0-9]+$", df_cleaned$InvoiceNo), ]
+
+```
+
+```{r}
+# Kiểm tra còn chữ cái không?
+any(grepl("[A-Za-z]", df_cleaned$InvoiceNo))  # Phải trả FALSE
+
+# Kiểm tra còn ký tự đặc biệt không?
+any(grepl("[^0-9]", df_cleaned$InvoiceNo))    # Phải trả FALSE
+```
+
+```{r}
+
+# Tạo điều kiện giữ lại các StockCode hợp lệ:
+mask <- grepl("^\\d{5,6}$", df_cleaned$StockCode) |           # Toàn số, 5-6 chữ số
+        grepl("^\\d{5}[A-Za-z]$", df_cleaned$StockCode) |     # 5 số + 1 chữ cái
+        df_cleaned$StockCode == "APADSS"                      # Mã đặc biệt
+
+# Áp dụng lọc
+df_cleaned <- df_cleaned[mask, ]
+
+df_cleaned
+```
+```{r}
+sum(is.na(df$CustomerID))  # đếm số dòng bị thiếu
+```
+
+```{r}
+# Xóa các dòng có NA ở cột CustomerID
+df_cleaned <- df_cleaned[!is.na(df_cleaned$CustomerID), ]
+
+nrow(df) - nrow(df_cleaned)  # số dòng đã bị xóa
+
+colSums(is.na(df_cleaned))
+```
+
+```{r}
+# thống kê data sau khi drop na
+summary(df_cleaned)
+
+```
+
+**Nhận xét tổng quan về dữ liệu df_cleaned:**
+
+
+
+
+```{r}
+# kiểm tra giá trị bằng 0 của col 'UnitPrice'
+sum(df_cleaned$UnitPrice == 0)
+# chỉ lấy giá trị khác 0 
+df_cleaned <- df_cleaned[df_cleaned$UnitPrice > 0, ]
+#Kiểm tra 
+summary(df_cleaned)
+
+```
+
+```{r}
+#Tính tỷ lệ phần trăm số dòng còn lại trong df_cleaned so với tổng số dòng ban đầu trong df.
+sprintf("%.2f%%", nrow(df_cleaned) / nrow(df) * 100)
+```
+
+
+```{r}
+##Trực quan hóa
+# Số dòng ban đầu và sau khi làm sạch
+total_rows <- nrow(df)
+cleaned_rows <- nrow(df_cleaned)
+removed_rows <- total_rows - cleaned_rows
+# Tạo dataframe để vẽ
+summary_df <- data.frame(
+  Trạng_thái = c("Giữ lại", "Đã loại"),
+  Số_lượng = c(cleaned_rows, removed_rows)
+)
+# Vẽ biểu đồ
+barplot(
+  summary_df$Số_lượng,
+  names.arg = summary_df$Trạng_thái,
+  col = c("skyblue", "salmon"),
+  main = "So sánh số dòng trước và sau khi làm sạch",
+  ylab = "Số dòng",
+  ylim = c(0, max(summary_df$Số_lượng) * 1.1)
+)
+# Hiển thị số liệu trên cột
+text(
+  x = c(1, 2),
+  y = summary_df$Số_lượng,
+  labels = summary_df$Số_lượng,
+  pos = 3,
+  cex = 1.2
+)
+```
+
+##Analysis RFM 
+
+```{r}
+# tạo cột tổng chi tiêu làm Monetary (tổng chi tiêu)
+df_cleaned$SalesLineTotal <- df_cleaned$Quantity * df_cleaned$UnitPrice
+# Hiển thị kết quả
+print(df_cleaned, width = Inf)
+```
+
+
+```{r}
+aggregated_df <- summarise(
+  group_by(df_cleaned, CustomerID),
+  MonetaryValue = sum(SalesLineTotal, na.rm = TRUE),
+  Frequency = n_distinct(InvoiceNo),
+  LastInvoiceDate = max(InvoiceDate)
+)
+```
+
+
+```{r}
+# Tính Recency
+analysis_date <- as.Date(max(df_cleaned$InvoiceDate))
+aggregated_df$Recency <- as.numeric(analysis_date - aggregated_df$LastInvoiceDate)
+
+print(aggregated_df, width = Inf)
+
+```
+
+```{r}
+# Thiết lập bố cục 1 hàng 3 biểu đồ
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))  # 1 dòng, 3 cột
+
+# Biểu đồ 1: Monetary Value
+hist(aggregated_df$MonetaryValue,
+     breaks = 10,
+     col = "skyblue",
+     border = "red",
+     main = "Monetary Value Distribution",
+     xlab = "Monetary Value",
+     ylab = "Count")
+
+# Biểu đồ 2: Frequency
+hist(aggregated_df$Frequency,
+     breaks = 10,
+     col = "lightgreen",
+     border = "red",
+     main = "Frequency Distribution",
+     xlab = "Frequency",
+     ylab = "Count")
+
+# Biểu đồ 3: Recency
+hist(aggregated_df$Recency,
+     breaks = 20,
+     col = "yellow",
+     border = "red",
+     main = "Recency Distribution",
+     xlab = "Recency",
+     ylab = "Count")
+
+# Reset layout về mặc định (1 biểu đồ/khung)
+par(mfrow = c(1, 1))
+```
+**Nhận xét**
+
+  - **Monetary Value Distribution (Giá trị chi tiêu):**
+  
+      * Phân bố rất lệch phải (right-skewed).
+
+      * Phần lớn khách hàng có tổng chi tiêu (Monetary) rất thấp (đa số < 10,000).
+
+      * Chỉ một số ít khách chi tiêu rất cao (có giá trị tới 250,000+), tạo ra outlier rất mạnh.
+      
+  - **Kết luận:**
+    
+      * Tập khách hàng có sự khác biệt lớn về giá trị – phù hợp để phân nhóm (clustering).
+    
+      * Nên xem xét log-transform hoặc winsorizing trước khi dùng cho mô hình.
+    
+  - **Frequency Distribution (Tần suất mua hàng):**
+
+      * Cực kỳ lệch phải: gần như tất cả khách chỉ mua 1–2 lần.
+
+      * Rất ít khách hàng mua từ 10 lần trở lên (hiếm có >50).
+
+      * Một vài giá trị lớn (outlier) vẫn tồn tại.
+
+  - **Kết luận:**
+  
+      * Phần lớn khách hàng không trung thành → chỉ mua 1 lần.
+
+      * Rất cần phát triển nhóm khách “frequent buyers” (nếu muốn tăng CLV).
+
+      * Có thể tạo chính sách ưu đãi tần suất cho nhóm tiềm năng.
+
+  - **Recency Distribution (Khoảng thời gian kể từ lần mua gần nhất):**
+
+      * Phân bố cũng lệch phải nhưng nhẹ hơn.
+
+      * Nhiều khách hàng mới mua gần đây (Recency thấp) → tập trung ở khoảng 0–50 ngày.
+
+      * Càng xa (Recency cao), số lượng khách giảm dần → biểu hiện tốt.
+
+  - **Kết luận:**
+  
+      * Có nhiều khách hàng mới hoạt động gần đây.
+
+      * Cơ hội rất tốt để chạy lại remarketing hoặc tái kích hoạt khách cũ.
+
+      * Tập khách cũ (Recency > 250) có thể là khách rời bỏ.
+      
+**kiểm tra outlier**
+
+```{r}
+data_outliers <- aggregated_df
+```
+
+```{r}
+# Đặt layout: 1 hàng, 3 biểu đồ
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+
+# Boxplot 1: MonetaryValue
+boxplot(aggregated_df$MonetaryValue,
+        col = "skyblue",
+        main = "Monetary Value Boxplot",
+        xlab = "Monetary Value")
+
+# Boxplot 2: Frequency
+boxplot(aggregated_df$Frequency,
+        col = "lightgreen",
+        main = "Frequency Boxplot",
+        xlab = "Frequency")
+
+# Boxplot 3: Recency
+boxplot(aggregated_df$Recency,
+        col = "salmon",
+        main = "Recency Boxplot",
+        xlab = "Recency")
+
+# Reset lại layout về mặc định (1 biểu đồ)
+par(mfrow = c(1, 1))
+```
+
+
+```{r}
+# Tính Q1, Q3 và IQR cho MonetaryValue
+M_Q1 <- quantile(aggregated_df$MonetaryValue, 0.25)
+M_Q3 <- quantile(aggregated_df$MonetaryValue, 0.75)
+M_IQR <- M_Q3 - M_Q1
+
+# Lọc các dòng là outlier
+monetary_outliers_df <- aggregated_df[
+  aggregated_df$MonetaryValue < (M_Q1 - 1.5 * M_IQR) |
+  aggregated_df$MonetaryValue > (M_Q3 + 1.5 * M_IQR),
+]
+
+# Xem mô tả dữ liệu outlier
+summary(monetary_outliers_df)
+
+```
+
+```{r}
+# Tính Q1, Q3 và IQR cho Frequency
+F_Q1 <- quantile(aggregated_df$Frequency, 0.25)
+F_Q3 <- quantile(aggregated_df$Frequency, 0.75)
+F_IQR <- F_Q3 - F_Q1
+
+# Lọc các dòng là outlier theo Frequency
+frequency_outliers_df <- aggregated_df[
+  aggregated_df$Frequency < (F_Q1 - 1.5 * F_IQR) |
+  aggregated_df$Frequency > (F_Q3 + 1.5 * F_IQR),
+]
+
+# Thống kê dữ liệu outlier
+summary(frequency_outliers_df)
+
+```
+
+```{r}
+# Loại bỏ outlier bằng cách giữ lại các dòng KHÔNG nằm trong monetary và frequency outliers
+
+# Lấy chỉ số hàng (index) cần loại bỏ
+outlier_indices <- union(
+  which(aggregated_df$MonetaryValue < (M_Q1 - 1.5 * M_IQR) | aggregated_df$MonetaryValue > (M_Q3 + 1.5 * M_IQR)),
+  which(aggregated_df$Frequency < (F_Q1 - 1.5 * F_IQR) | aggregated_df$Frequency > (F_Q3 + 1.5 * F_IQR))
+)
+
+# Giữ lại các dòng không nằm trong chỉ số outlier
+non_outliers_df <- aggregated_df[-outlier_indices, ]
+
+# Kiểm tra lại
+summary(non_outliers_df)
+
+```
+
+
+```{r}
+# Trực quan sau khi loại bỏ 
+# Chia khung hình ra 1 dòng 3 biểu đồ
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+
+# Boxplot 1: Monetary Value
+boxplot(non_outliers_df$MonetaryValue,
+        col = "skyblue",
+        main = "Monetary Value Boxplot",
+        xlab = "Monetary Value")
+
+# Boxplot 2: Frequency
+boxplot(non_outliers_df$Frequency,
+        col = "lightgreen",
+        main = "Frequency Boxplot",
+        xlab = "Frequency")
+
+# Boxplot 3: Recency
+boxplot(non_outliers_df$Recency,
+        col = "salmon",
+        main = "Recency Boxplot",
+        xlab = "Recency")
+
+# Reset lại layout về mặc định
+par(mfrow = c(1, 1))
+```
+
+
+```{r}
+# Vẽ scatter plot 3D
+ggplot(non_outliers_df, aes(x = MonetaryValue, y = Frequency, color = Recency)) +
+  geom_point(alpha = 0.7, size = 2) +
+  scale_color_gradient(low = "skyblue", high = "darkblue") +
+  labs(
+    title = "Phân bố khách hàng theo Monetary - Frequency - Recency (2D)",
+    x = "Monetary Value",
+    y = "Frequency",
+    color = "Recency"
+  ) +
+  theme_minimal()
+
+```
+```{r}
+# Chuẩn hóa các cột MonetaryValue, Frequency, Recency
+scaled_data <- scale(non_outliers_df[, c("MonetaryValue", "Frequency", "Recency")])
+```
+
+```{r}
+# Chuyển matrix chuẩn hóa về data.frame
+scaled_data_df <- as.data.frame(scaled_data)
+
+# Đặt lại tên cột
+colnames(scaled_data_df) <- c("MonetaryValue", "Frequency", "Recency")
+
+# Gán lại rownames nếu cần giữ index
+rownames(scaled_data_df) <- rownames(non_outliers_df)
+# Xem kết quả
+head(scaled_data_df)
+```
+
+```{r}
+ggplot(scaled_data_df, aes(x = MonetaryValue, y = Frequency, color = Recency)) +
+  geom_point(alpha = 0.7, size = 2) +
+  scale_color_gradient(low = "skyblue", high = "darkblue") +
+  labs(
+    title = "2D Scatter Plot (Recency as Color)",
+    x = "Monetary (Scaled)",
+    y = "Frequency (Scaled)",
+    color = "Recency (Scaled)"
+  ) +
+  theme_minimal()
+```
+

@@ -1,0 +1,153 @@
+---
+title: "Ứng dụng RFM trong phân khúc khách hàng"
+author: "Nguyen Nhat Nam, Hoang Quang Minh, Ha The Anh"
+output:
+output:
+  html_document:
+    toc: true
+    toc_depth: '3'
+    df_print: paged
+  word_document:
+    toc: true
+    toc_depth: 3
+  pdf_document:
+    latex_engine: xelatex
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+    fig_height: 5
+    fig_width: 7
+    highlight: tango
+header-includes:
+- \usepackage{graphicx}
+- \usepackage{fontspec}
+- \setmainfont{Times New Roman}
+---
+# **TỔNG QUAN**
+
+## Giới thiệu đề tài
+
+Trong bối cảnh cạnh tranh ngày càng khốc liệt, việc thấu hiểu khách hàng trở thành yếu tố then chốt giúp doanh nghiệp duy trì và phát triển mối quan hệ lâu dài. Một trong những công cụ hiệu quả để thực hiện điều này là mô hình RFM – viết tắt của Recency (Gần đây), Frequency (Tần suất), và Monetary (Giá trị chi tiêu). Mô hình RFM cho phép doanh nghiệp đánh giá hành vi tiêu dùng của khách hàng dựa trên ba yếu tố cốt lõi, từ đó thực hiện phân khúc khách hàng một cách trực quan và có căn cứ dữ liệu.
+
+Trong đề tài này, chúng tôi ứng dụng mô hình RFM kết hợp với thuật toán phân cụm K-Means để phân nhóm khách hàng trên môi trường ngôn ngữ R. Việc này không chỉ hỗ trợ doanh nghiệp xác định nhóm khách hàng mục tiêu mà còn tối ưu hóa chiến lược tiếp thị, giữ chân khách hàng và tăng trưởng doanh thu. Báo cáo được thực hiện trên bộ dữ liệu giao dịch thực tế, minh họa quy trình từ tiền xử lý dữ liệu, xây dựng thang đo RFM, đến trực quan hóa và phân tích kết quả phân cụm.
+
+## Nhiệm vụ của đồ án
+
+- **Khám phá và hiểu dữ liệu:**
+  - Đọc dữ liệu giao dịch từ file Excel.
+  - Tìm hiểu cấu trúc dữ liệu, mô tả các biến và kiểm tra dữ liệu thiếu.
+
+- **Tiền xử lý dữ liệu:**
+  - Làm sạch dữ liệu: loại bỏ bản ghi thiếu mã khách hàng hoặc số lượng âm.
+  - Tạo biến mới như "Tổng chi tiêu" để phục vụ cho bước tính RFM.
+
+- **Xây dựng mô hình RFM:**
+  - Tính toán ba chỉ số RFM cho từng khách hàng:
+    - Recency: Số ngày kể từ giao dịch gần nhất.
+    - Frequency: Số lần giao dịch.
+    - Monetary: Tổng giá trị chi tiêu.
+  - Tạo bảng tổng hợp RFM cho toàn bộ khách hàng.
+
+- **Chuẩn hóa dữ liệu và phân cụm:**
+  - Chuẩn hóa các giá trị RFM để đưa về cùng thang đo.
+  - Xác định số cụm tối ưu bằng Elbow method và Silhouette score.
+  - Áp dụng thuật toán K-Means và DBScan để phân cụm khách hàng.
+
+- **Trực quan hóa và phân tích kết quả:**
+  - Vẽ biểu đồ để quan sát sự phân bố khách hàng theo cụm.
+  - Phân tích đặc điểm từng cụm dựa trên giá trị trung bình của các chỉ số RFM.
+  
+## Tính cấp thiết của đề tài
+
+Trong bối cảnh thị trường cạnh tranh ngày càng khốc liệt, việc thấu hiểu hành vi khách hàng không chỉ là lợi thế mà còn là điều kiện sống còn để doanh nghiệp duy trì và phát triển. Thay vì áp dụng các chiến lược tiếp thị đại trà, doanh nghiệp hiện nay có xu hướng cá nhân hóa trải nghiệm nhằm tăng mức độ gắn bó và giá trị vòng đời khách hàng.
+
+Tuy nhiên, khối lượng dữ liệu khách hàng ngày càng lớn, đa dạng và phức tạp, khiến cho các phương pháp phân tích truyền thống không còn đáp ứng được nhu cầu khai thác sâu. Việc ứng dụng mô hình RFM (Recency - Frequency - Monetary) kết hợp với thuật toán phân cụm K-Means và DBScan là một giải pháp phù hợp, giúp doanh nghiệp phân khúc khách hàng một cách khoa học và dựa trên dữ liệu thực tiễn.
+
+Việc triển khai đề tài trên nền tảng R không chỉ tận dụng sức mạnh phân tích dữ liệu và trực quan hóa mà còn rèn luyện kỹ năng khai phá dữ liệu – một năng lực quan trọng trong thời đại chuyển đổi số. Do đó, việc thực hiện đề tài "Ứng dụng RFM trong phân khúc khách hàng" mang tính cấp thiết và có ý nghĩa thực tiễn cao trong hoạt động marketing hiện đại.
+
+## Mục tiêu của đề tài
+
+Đề tài hướng đến việc ứng dụng mô hình RFM kết hợp với các thuật toán phân cụm để phân loại khách hàng dựa trên hành vi mua sắm, từ đó hỗ trợ doanh nghiệp trong việc xây dựng chiến lược tiếp thị hiệu quả hơn. Cụ thể, đề tài tập trung vào các mục tiêu sau:
+
+- **Xây dựng hệ thống đánh giá hành vi khách hàng** thông qua ba chỉ số RFM: Recency (gần đây), Frequency (tần suất), và Monetary (giá trị chi tiêu).
+- **Phân cụm khách hàng một cách khoa học** bằng thuật toán **K-Means** dựa trên dữ liệu RFM đã được chuẩn hóa.
+- **Phân cụm khách hàng bằng thuật toán DBSCAN**, nhằm khám phá các cụm có hình dạng bất quy tắc và phát hiện các điểm dữ liệu bất thường (outlier) mà K-Means có thể bỏ sót.
+- **So sánh kết quả phân cụm giữa K-Means và DBSCAN**, phân tích điểm mạnh – điểm yếu của từng phương pháp trong ngữ cảnh dữ liệu RFM.
+- **Phân tích đặc điểm từng nhóm khách hàng**, từ đó rút ra nhận định về giá trị và hành vi của mỗi nhóm.
+- **Đề xuất định hướng ứng dụng kết quả phân cụm** vào các hoạt động tiếp thị, chăm sóc và giữ chân khách hàng, như thiết kế chương trình ưu đãi cá nhân hóa hoặc ưu tiên tập trung vào nhóm khách hàng có giá trị cao.
+
+Thông qua việc kết hợp cả hai phương pháp, đề tài không chỉ khai thác toàn diện tiềm năng từ dữ liệu hành vi khách hàng mà còn mở rộng góc nhìn so sánh trong việc ứng dụng các thuật toán học máy trong thực tiễn kinh doanh.
+
+# **cƠ SỞ LÝ THUYẾT**
+
+## **Thuật toán phân cụm K – Means**
+
+### Khái niệm về K – Means
+
+Thuật toán K-means là một kỹ thuật học không giám sát nổi bật, được ứng dụng rộng rãi trong phân tích dữ liệu nhằm chia tập dữ liệu chưa gán nhãn thành các nhóm (cụm) sao cho các điểm dữ liệu trong cùng một cụm có mức độ tương đồng cao, trong khi sự khác biệt giữa các cụm là tối đa. Nguyên lý hoạt động của K-means dựa trên việc tối thiểu hóa tổng bình phương khoảng cách giữa các điểm dữ liệu và tâm cụm mà chúng được gán vào. Mỗi điểm sẽ được phân vào cụm có trung tâm gần nhất, và các tâm cụm được cập nhật liên tục cho đến khi đạt được trạng thái hội tụ.
+
+
+```{r fig.align='center', echo=FALSE, out.width='70%',fig.cap="Minh họa về K - Means"}
+knitr::include_graphics("images/1.jpg")
+```
+
+Mục tiêu chính của K-Means là giảm thiểu tổng bình phương khoảng cách giữa các điểm dữ liệu và trung tâm cụm của chúng, được gọi là Within-Cluster Sum of Squares (WCSS):
+
+$$WCSS = \sum_{i=1}^{K} \sum_{x \in C_i} \| x - \mu_i \|^2$$
+Trong đó:
+
+- $K$: Là số lượng cụm  
+- $C_i$: Là tập hợp các điểm thuộc cụm thứ $i$  
+- $\mu_i$: Là trung tâm (tâm cụm) của cụm thứ $i$  
+- $\|x - \mu_i\|^2$: Là bình phương khoảng cách Euclidean giữa điểm $x$ và tâm cụm $\mu_i$
+
+### Cách hoạt động của K-Means
+
+Bước 1: Chọn số lượng cụm
+
+  - Xác định số lượng cụm $K$ mà ta sẽ nhóm dữ liệu. Ví dụ chọn $K = 3$.
+  
+Bước 2: Khởi tạo tâm cụm ban đầu
+
+  -	Do vị trí chính xác của các tâm cụm chưa được biết, nên ở giai đoạn khởi tạo, thuật toán sẽ chọn ngẫu nhiên K điểm từ tập dữ liệu và coi đó là các tâm cụm ban đầu.
+
+```{r fig.align='center', echo=FALSE, out.width='30%',fig.cap="Ví dụ minh họa về khởi tạo tâm cụm"}
+knitr::include_graphics("images/2.jpg")
+```
+
+Bước 3: Gán điểm dữ liệu cho cụm gần nhất
+
+  -	Sau khi đã có tâm cụm ban đầu, mỗi điểm dữ liệu sẽ được gán vào cụm có tâm gần nhất. Khoảng cách giữa điểm dữ liệu và tâm cụm thường được đo bằng khoảng cách Euclidean. Điểm dữ liệu sẽ thuộc về cụm có tâm mà nó có khoảng cách Euclidean ngắn nhất.
+  
+```{r fig.align='center', echo=FALSE, out.width='30%',fig.cap="Ví dụ về gán điểm dữ liệu cho cụm cần nhất"}
+knitr::include_graphics("images/3.jpg")
+```
+
+  - Đo khoảng cách từ các điểm tới tâm cụm bằng phép đo khoảng cách Euclidean.
+
+$$d(x, y) = \sqrt{ \sum_{i=1}^{n} (x_i - y_i)^2 }$$
+
+  - Sau đó chọn cụm cho dữ liệu có khoảng cách giữa các điểm dữ liệu và tâm nhỏ nhất.
+  
+```{r fig.align='center', echo=FALSE, out.width='30%',fig.cap="Sau khi đo khoảng cách tâm tới điểm dữ liệu"}
+knitr::include_graphics("images/4.jpg")
+```
+
+Bước 4: Khởi tạo lại tâm cụm
+
+  - Khởi tạo lại trọng tâm bằng cách tính toán giá trị trung bình của tất cả các điểm dữ liệu của cụm đó.
+  
+$$C_i = \frac{1}{|N_i|} \sum x_i$$
+
+Trong đó:
+
+- $C_i$: là tâm cụm thứ $i$ (centroid của cụm $i$)  
+- $N_i$: là tập các điểm thuộc cụm $i$  
+- $|N_i|$: là số lượng điểm trong cụm $i$ (kích thước cụm)  
+- $\sum x_i$: là tổng các vector dữ liệu $x_i$ trong cụm $i$
+
+  
+```{r fig.align='center', echo=FALSE, out.width='30%',fig.cap="Sau khi khởi tạo lại tâm cụm"}
+knitr::include_graphics("images/5.jpg")
+```
