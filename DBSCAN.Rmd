@@ -1,0 +1,762 @@
+---
+title: "Clean and RFM - DBSCAn"
+author: "Nguyễn Nhật Nam, Hà Thế Anh"
+output:
+  html_document:
+    toc: true
+    toc_depth: '3'
+    df_print: paged
+  word_document:
+    toc: true
+    toc_depth: 3
+  pdf_document:
+    latex_engine: xelatex
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+    fig_height: 5
+    fig_width: 7
+    highlight: tango
+header-includes:
+- \usepackage{graphicx}
+- \usepackage{fontspec}
+- \setmainfont{Times New Roman}
+---
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+Sys.setlocale("LC_ALL", "English_United States.UTF-8")
+
+```
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(tidyverse)
+library(cluster)
+library(factoextra)
+library(lubridate)
+library(scales)
+library(psych)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+```
+
+
+# Tiền xử lý dữ liệu
+
+```{r message=FALSE, warning=FALSE}
+# Đọc dữ liệu
+df <- read_excel("Online Retail.xlsx")
+head(df)  
+
+```
+
+  InvoiceNo: Mã đơn hàng 
+  
+  StockCode: Mã sản phẩm 
+  
+  Description: Mô tả sản phẩm 
+  
+  Quantity: Số lượng sản phẩm 
+  
+  InvoiceDate: Ngày hóa đơn 
+  
+  UnitPrice: Giá sản phẩm trên mỗi đơn vị 
+  
+  CustomerID: Mã khách hàng 
+  
+  Country: Quốc gia của khách hàng
+  
+
+```{r}
+#Kiểm tra kiểu dữ liệu
+str(df)
+```
+
+
+```{r}
+# thống kê mô tả dữ liệu 
+describe(df)
+
+```
+
+```{r}
+# Thống kê data object 
+summary(df[, sapply(df, is.character)])
+```
+```{r}
+#kiểm tra dữ liệu thiếu 
+colSums(is.na(df))
+```
+
+
+```{r}
+# Kiểm tra giá trị thiếu của CustomerID
+df_na <- df[is.na(df$CustomerID), ]
+print(df_na[sample(nrow(df_na), 10), ], width = Inf)
+```
+
+```{r}
+# Chuyển 'InvoiceNo' về kiểu chuỗi
+df$InvoiceNo <- as.character(df$InvoiceNo)
+#Lọc ra những dòng KHÔNG có InvoiceNo đúng 6 chữ số
+df[!grepl("^\\d{6}$", df$InvoiceNo), ]
+
+#Kiểm tra kí tự khác trong cột InvoiceNo 
+unique(gsub("[0-9]", "", df$InvoiceNo))
+
+# kiểm tra col 'InvoiceNo' có giá trị nào bắt đầu bằng kí tự 'A' ko
+df[grepl("^A", df$InvoiceNo), ]
+```
+```{r}
+# Đảm bảo 'StockCode' là kiểu chuỗi
+df$StockCode <- as.character(df$StockCode)
+# Lọc những dòng KHÔNG phải 5 chữ số hoặc 5 chữ số + chữ cái
+mask <- !(grepl("^\\d{5}$", df$StockCode) | grepl("^\\d{5}[a-zA-Z]+$", df$StockCode))
+# Lấy các StockCode sai định dạng và loại trùng
+invalid_stockcodes <- unique(df$StockCode[mask])
+# Hiển thị kết quả
+print(invalid_stockcodes)
+# Lọc những dòng có chứa chuỗi 'DOT'
+df_with_DOT <- df[grepl("DOT", df$StockCode), ]
+# Hiển thị kết quả
+print(df_with_DOT)
+```
+
+ **Stock Code**
+
+- **Include** 🟢 → Giữ lại để phân tích hoặc clustering.  
+- **Exclude** ❌ → Loại bỏ hoàn toàn, không dùng để phân tích.  
+- **Exclude from clustering** 🚫 → Không dùng để phân nhóm nhưng có thể tham khảo.  
+- **Exclude for now** ⏳ → Tạm loại bỏ, có thể xem xét lại sau. 
+
+- **StockCode** is meant to follow the pattern `[0-9]{5}` but seems to have legit values for `[0-9]{5}[a-zA-Z]+`.  
+&nbsp;&nbsp;&nbsp;&nbsp; **Also contains other values:** 
+
+
+
+| Code             | Description                                                                 | Action                      |
+|------------------|-----------------------------------------------------------------------------|-----------------------------|
+| POST            | Not listed previously, likely a postage-related transaction                | Exclude for now             |
+| D               | Looks valid, represents discount values                                    | Exclude from clustering     |
+| C2              | Carriage transaction - not sure what this means                           | Exclude from clustering     |
+| DOT             | Looks valid, represents postage charges                                   | Exclude from clustering     |
+| M or m          | Looks valid, represents manual transactions                               | Exclude from clustering     |
+| BANK CHARGES or B | Bank charges                                                           | Exclude from clustering     |
+| S               | Samples sent to customer                                                 | Exclude from clustering     |
+| AMAZONFEE       | Looks like fees for Amazon shipping or something                         | Exclude for now             |
+| DCGS0076        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0003        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| gift_0001_40    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| DCGS0070        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| m               | Looks valid, represents manual transactions                              | Exclude from clustering     |
+| gift_0001_50    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| gift_0001_30    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| gift_0001_20    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| DCGS0055        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0072        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0074        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0069        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0057        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGSSBOY        | Possible category or bundle-related code                                 | Exclude for now             |
+| DCGSSGIRL       | Possible category or bundle-related code                                 | Exclude for now             |
+| gift_0001_10    | Purchases with gift cards, might be interesting for another analysis, but no customer data | Exclude |
+| PADS            | Looks like a legit stock code for padding                                | Include                     |
+| DCGS0004        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0073        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0071        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0068        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0067        | Variant of DCGS, likely falls under the same category                    | Exclude from clustering     |
+| DCGS0066P       | Variant of DCGS, possibly a special category                            | Exclude from clustering     |
+| B               | Bank charges                                                             | Exclude from clustering     |
+| CRUK            | Unknown, possibly a charity-related code                                | Exclude for now             |
+
+
+# Xử lý dữ liệu 
+
+```{r}
+# Chuyển InvoiceDate thành kiểu Date
+df$InvoiceDate <- as.Date(df$InvoiceDate)
+str(df)
+```
+
+```{r}
+# 1. Gán lại df gốc
+df_cleaned <- df
+# Loại bỏ toàn bộ dòng chứa bất kỳ ký tự KHÔNG PHẢI số (0–9)
+df_cleaned <- df_cleaned[grepl("^[0-9]+$", df_cleaned$InvoiceNo), ]
+
+```
+
+```{r}
+# Kiểm tra còn chữ cái không?
+any(grepl("[A-Za-z]", df_cleaned$InvoiceNo))  # Phải trả FALSE
+
+# Kiểm tra còn ký tự đặc biệt không?
+any(grepl("[^0-9]", df_cleaned$InvoiceNo))    # Phải trả FALSE
+```
+
+```{r}
+
+# Tạo điều kiện giữ lại các StockCode hợp lệ:
+mask <- grepl("^\\d{5,6}$", df_cleaned$StockCode) |           # Toàn số, 5-6 chữ số
+        grepl("^\\d{5}[A-Za-z]$", df_cleaned$StockCode) |     # 5 số + 1 chữ cái
+        df_cleaned$StockCode == "APADSS"                      # Mã đặc biệt
+
+# Áp dụng lọc
+df_cleaned <- df_cleaned[mask, ]
+
+df_cleaned
+```
+```{r}
+sum(is.na(df$CustomerID))  # đếm số dòng bị thiếu
+```
+
+```{r}
+# Xóa các dòng có NA ở cột CustomerID
+df_cleaned <- df_cleaned[!is.na(df_cleaned$CustomerID), ]
+
+nrow(df) - nrow(df_cleaned)  # số dòng đã bị xóa
+
+colSums(is.na(df_cleaned))
+```
+
+```{r}
+# thống kê data sau khi drop na
+summary(df_cleaned)
+
+```
+
+**Nhận xét tổng quan về dữ liệu df_cleaned:**
+
+
+
+
+```{r}
+# kiểm tra giá trị bằng 0 của col 'UnitPrice'
+sum(df_cleaned$UnitPrice == 0)
+# chỉ lấy giá trị khác 0 
+df_cleaned <- df_cleaned[df_cleaned$UnitPrice > 0, ]
+#Kiểm tra 
+summary(df_cleaned)
+
+```
+
+```{r}
+#Tính tỷ lệ phần trăm số dòng còn lại trong df_cleaned so với tổng số dòng ban đầu trong df.
+sprintf("%.2f%%", nrow(df_cleaned) / nrow(df) * 100)
+```
+
+
+```{r}
+##Trực quan hóa
+# Số dòng ban đầu và sau khi làm sạch
+total_rows <- nrow(df)
+cleaned_rows <- nrow(df_cleaned)
+removed_rows <- total_rows - cleaned_rows
+# Tạo dataframe để vẽ
+summary_df <- data.frame(
+  Trạng_thái = c("Giữ lại", "Đã loại"),
+  Số_lượng = c(cleaned_rows, removed_rows)
+)
+# Vẽ biểu đồ
+barplot(
+  summary_df$Số_lượng,
+  names.arg = summary_df$Trạng_thái,
+  col = c("skyblue", "salmon"),
+  main = "So sánh số dòng trước và sau khi làm sạch",
+  ylab = "Số dòng",
+  ylim = c(0, max(summary_df$Số_lượng) * 1.1)
+)
+# Hiển thị số liệu trên cột
+text(
+  x = c(1, 2),
+  y = summary_df$Số_lượng,
+  labels = summary_df$Số_lượng,
+  pos = 3,
+  cex = 1.2
+)
+```
+
+##Analysis RFM 
+
+```{r}
+# tạo cột tổng chi tiêu làm Monetary (tổng chi tiêu)
+df_cleaned$SalesLineTotal <- df_cleaned$Quantity * df_cleaned$UnitPrice
+# Hiển thị kết quả
+print(df_cleaned, width = Inf)
+```
+
+
+```{r}
+aggregated_df <- summarise(
+  group_by(df_cleaned, CustomerID),
+  MonetaryValue = sum(SalesLineTotal, na.rm = TRUE),
+  Frequency = n_distinct(InvoiceNo),
+  LastInvoiceDate = max(InvoiceDate)
+)
+```
+
+
+```{r}
+# Tính Recency
+analysis_date <- as.Date(max(df_cleaned$InvoiceDate))
+aggregated_df$Recency <- as.numeric(analysis_date - aggregated_df$LastInvoiceDate)
+
+print(aggregated_df, width = Inf)
+
+```
+
+```{r}
+# Thiết lập bố cục 1 hàng 3 biểu đồ
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))  # 1 dòng, 3 cột
+
+# Biểu đồ 1: Monetary Value
+hist(aggregated_df$MonetaryValue,
+     breaks = 10,
+     col = "skyblue",
+     border = "red",
+     main = "Monetary Value Distribution",
+     xlab = "Monetary Value",
+     ylab = "Count")
+
+# Biểu đồ 2: Frequency
+hist(aggregated_df$Frequency,
+     breaks = 10,
+     col = "lightgreen",
+     border = "red",
+     main = "Frequency Distribution",
+     xlab = "Frequency",
+     ylab = "Count")
+
+# Biểu đồ 3: Recency
+hist(aggregated_df$Recency,
+     breaks = 20,
+     col = "yellow",
+     border = "red",
+     main = "Recency Distribution",
+     xlab = "Recency",
+     ylab = "Count")
+
+# Reset layout về mặc định (1 biểu đồ/khung)
+par(mfrow = c(1, 1))
+```
+**Nhận xét**
+
+  - **Monetary Value Distribution (Giá trị chi tiêu):**
+  
+      * Phân bố rất lệch phải (right-skewed).
+
+      * Phần lớn khách hàng có tổng chi tiêu (Monetary) rất thấp (đa số < 10,000).
+
+      * Chỉ một số ít khách chi tiêu rất cao (có giá trị tới 250,000+), tạo ra outlier rất mạnh.
+      
+  - **Kết luận:**
+    
+      * Tập khách hàng có sự khác biệt lớn về giá trị – phù hợp để phân nhóm (clustering).
+    
+      * Nên xem xét log-transform hoặc winsorizing trước khi dùng cho mô hình.
+    
+  - **Frequency Distribution (Tần suất mua hàng):**
+
+      * Cực kỳ lệch phải: gần như tất cả khách chỉ mua 1–2 lần.
+
+      * Rất ít khách hàng mua từ 10 lần trở lên (hiếm có >50).
+
+      * Một vài giá trị lớn (outlier) vẫn tồn tại.
+
+  - **Kết luận:**
+  
+      * Phần lớn khách hàng không trung thành → chỉ mua 1 lần.
+
+      * Rất cần phát triển nhóm khách “frequent buyers” (nếu muốn tăng CLV).
+
+      * Có thể tạo chính sách ưu đãi tần suất cho nhóm tiềm năng.
+
+  - **Recency Distribution (Khoảng thời gian kể từ lần mua gần nhất):**
+
+      * Phân bố cũng lệch phải nhưng nhẹ hơn.
+
+      * Nhiều khách hàng mới mua gần đây (Recency thấp) → tập trung ở khoảng 0–50 ngày.
+
+      * Càng xa (Recency cao), số lượng khách giảm dần → biểu hiện tốt.
+
+  - **Kết luận:**
+  
+      * Có nhiều khách hàng mới hoạt động gần đây.
+
+      * Cơ hội rất tốt để chạy lại remarketing hoặc tái kích hoạt khách cũ.
+
+      * Tập khách cũ (Recency > 250) có thể là khách rời bỏ.
+      
+**kiểm tra outlier**
+
+```{r}
+data_outliers <- aggregated_df
+```
+
+```{r}
+# Đặt layout: 1 hàng, 3 biểu đồ
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+
+# Boxplot 1: MonetaryValue
+boxplot(aggregated_df$MonetaryValue,
+        col = "skyblue",
+        main = "Monetary Value Boxplot",
+        xlab = "Monetary Value")
+
+# Boxplot 2: Frequency
+boxplot(aggregated_df$Frequency,
+        col = "lightgreen",
+        main = "Frequency Boxplot",
+        xlab = "Frequency")
+
+# Boxplot 3: Recency
+boxplot(aggregated_df$Recency,
+        col = "salmon",
+        main = "Recency Boxplot",
+        xlab = "Recency")
+
+# Reset lại layout về mặc định (1 biểu đồ)
+par(mfrow = c(1, 1))
+```
+
+
+```{r}
+# Tính Q1, Q3 và IQR cho MonetaryValue
+M_Q1 <- quantile(aggregated_df$MonetaryValue, 0.25)
+M_Q3 <- quantile(aggregated_df$MonetaryValue, 0.75)
+M_IQR <- M_Q3 - M_Q1
+
+# Lọc các dòng là outlier
+monetary_outliers_df <- aggregated_df[
+  aggregated_df$MonetaryValue < (M_Q1 - 1.5 * M_IQR) |
+  aggregated_df$MonetaryValue > (M_Q3 + 1.5 * M_IQR),
+]
+
+# Xem mô tả dữ liệu outlier
+summary(monetary_outliers_df)
+
+```
+
+```{r}
+# Tính Q1, Q3 và IQR cho Frequency
+F_Q1 <- quantile(aggregated_df$Frequency, 0.25)
+F_Q3 <- quantile(aggregated_df$Frequency, 0.75)
+F_IQR <- F_Q3 - F_Q1
+
+# Lọc các dòng là outlier theo Frequency
+frequency_outliers_df <- aggregated_df[
+  aggregated_df$Frequency < (F_Q1 - 1.5 * F_IQR) |
+  aggregated_df$Frequency > (F_Q3 + 1.5 * F_IQR),
+]
+
+# Thống kê dữ liệu outlier
+summary(frequency_outliers_df)
+
+```
+
+```{r}
+# Loại bỏ outlier bằng cách giữ lại các dòng KHÔNG nằm trong monetary và frequency outliers
+
+# Lấy chỉ số hàng (index) cần loại bỏ
+outlier_indices <- union(
+  which(aggregated_df$MonetaryValue < (M_Q1 - 1.5 * M_IQR) | aggregated_df$MonetaryValue > (M_Q3 + 1.5 * M_IQR)),
+  which(aggregated_df$Frequency < (F_Q1 - 1.5 * F_IQR) | aggregated_df$Frequency > (F_Q3 + 1.5 * F_IQR))
+)
+
+# Giữ lại các dòng không nằm trong chỉ số outlier
+non_outliers_df <- aggregated_df[-outlier_indices, ]
+
+# Kiểm tra lại
+summary(non_outliers_df)
+
+```
+
+
+```{r}
+# Trực quan sau khi loại bỏ 
+# Chia khung hình ra 1 dòng 3 biểu đồ
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+
+# Boxplot 1: Monetary Value
+boxplot(non_outliers_df$MonetaryValue,
+        col = "skyblue",
+        main = "Monetary Value Boxplot",
+        xlab = "Monetary Value")
+
+# Boxplot 2: Frequency
+boxplot(non_outliers_df$Frequency,
+        col = "lightgreen",
+        main = "Frequency Boxplot",
+        xlab = "Frequency")
+
+# Boxplot 3: Recency
+boxplot(non_outliers_df$Recency,
+        col = "salmon",
+        main = "Recency Boxplot",
+        xlab = "Recency")
+
+# Reset lại layout về mặc định
+par(mfrow = c(1, 1))
+```
+
+
+```{r}
+# Vẽ scatter plot 3D
+plot_ly(non_outliers_df,
+        x = ~MonetaryValue,
+        y = ~Frequency,
+        z = ~Recency,
+        type = 'scatter3d',
+        mode = 'markers',
+        marker = list(size = 2, color = 'blue')) %>%
+  layout(
+    title = list(text = "3D Scatter Plot of Customer Data"),
+    scene = list(
+      xaxis = list(title = "Monetary"),
+      yaxis = list(title = "Frequency"),
+      zaxis = list(title = "Recency")
+    )
+  )
+
+
+```
+```{r}
+# Chuẩn hóa các cột MonetaryValue, Frequency, Recency
+scaled_data <- scale(non_outliers_df[, c("MonetaryValue", "Frequency", "Recency")])
+```
+
+```{r}
+# Chuyển matrix chuẩn hóa về data.frame
+scaled_data_df <- as.data.frame(scaled_data)
+
+# Đặt lại tên cột
+colnames(scaled_data_df) <- c("MonetaryValue", "Frequency", "Recency")
+
+# Gán lại rownames nếu cần giữ index
+rownames(scaled_data_df) <- rownames(non_outliers_df)
+# Xem kết quả
+head(scaled_data_df)
+```
+
+```{r}
+plot_ly(scaled_data_df,
+        x = ~MonetaryValue,
+        y = ~Frequency,
+        z = ~Recency,
+        type = "scatter3d",
+        mode = "markers",
+        marker = list(size = 2, color = 'blue')) %>%
+  layout(title = "3D Scatter Plot of Scaled Customer Data")
+```
+
+# Phân cụm dữ liệu sử dụng DBSCAN
+
+**(Density-Based Spatial Clustering of Applications with Noise)** là một thuật toán phân cụm dựa trên mật độ. Được giới thiệu bởi Martin Ester, Hans-Peter Kriegel, Jörg Sander, và Xiaowei Xu vào năm 1996, DBSCAN đã trở thành một trong những thuật toán phân cụm phổ biến nhất trong học máy không giám sát.
+
+Khác với K-Means dựa trên khoảng cách Euclidean và yêu cầu xác định trước số cụm, DBSCAN nhóm các điểm dựa trên mật độ của chúng trong không gian dữ liệu. Điều này giúp DBSCAN có nhiều ưu điểm:
+
+- Không cần biết trước số lượng cụm
+
+- Phát hiện được cụm có hình dạng tùy ý, không chỉ cụm hình cầu
+
+- Có khả năng phát hiện và loại bỏ nhiễu (outliers)
+
+- Hiệu quả với bộ dữ liệu lớn
+
+## Xác định tham số cho DBSCAN
+
+Bộ dữ liệu Online Retail qua bước tiền xử lý được lưu vào scaled_data, trước khi tiến hành phân cụm ta cần xác định các tham số cho DBSCAN
+
+### Xác định MinPts
+
+MinPts xác định số lượng điểm tối thiểu cần có trong vùng lân cận để một điểm được coi là điểm lõi.thông thường chúng ta chọn MinPts ≥ D + 1, trong đó D là số chiều của dữ liệu, trong bộ dữ liệu này ta dùng ba chỉ số là RFM để phân cụm nên MinPts = 4 là lựa chọn hợp lý.
+
+### Xác định Epsilon (ε)
+
+Epsilon xác định bán kính vùng lân cận. Đây là tham số khó xác định nhất và có ảnh hưởng lớn đến kết quả phân cụm.
+
+Để xác định Epsilon ta dùng phương pháp k-distance graph, cách phổ biến nhất để xác định ε phù hợp, các bước xác định bằng phương pháp k-distance graph bao gồm:
+
+1. Với mỗi điểm, tính khoảng cách đến điểm thứ k gần nhất (k = MinPts - 1)
+
+2. Sắp xếp các khoảng cách này theo thứ tự tăng dần
+
+3. Vẽ đồ thị k-distance
+
+4. Tìm "điểm gẩy" (elbow point) - điểm mà tại đó đường cong có sự thay đổi đáng kể
+
+5. Chọn ε tại điểm gẩy này
+
+```{r message=FALSE, warning=FALSE, fig.cap="Đồ thị xác định Eps xử dụng phương pháp k-distance graph"}
+# Cài đặt và nạp các gói cần thiết
+library(dbscan)  # Cho thuật toán DBSCAN
+library(factoextra)  # Cho trực quan hóa
+library(fpc)  # Cho đánh giá phân cụm
+library(ggplot2)  # Cho vẽ biểu đồ
+library(cluster)  # Cho hàm silhouette
+
+
+scaled_data_DB <- scale(non_outliers_df[, c("MonetaryValue", "Frequency", "Recency")])
+
+# Tính khoảng cách k-nearest neighbors
+k=3
+knn_dists <- kNNdist(scaled_data_DB, k = k)
+
+# Sắp xếp khoảng cách và vẽ đồ thị
+eps_candidates <- sort(knn_dists)
+plot(eps_candidates, type = "l", 
+     xlab = "Điểm dữ liệu (đã sắp xếp)",
+     ylab = paste("Khoảng cách đến điểm thứ", k, "gần nhất"),
+     main = "Phương pháp k-distance")
+
+# Tìm vị trí của điểm gẩy thủ công (khoảng 0.5)
+eps_value <- 0.4
+eps_index <- which.min(abs(eps_candidates - eps_value))
+
+# Đánh dấu điểm gẩy
+points(eps_index, eps_candidates[eps_index], col = "red", pch = 19)
+text(eps_index, eps_candidates[eps_index], 
+     labels = paste("ε ≈", round(eps_candidates[eps_index], 2)), 
+     pos = 4, col = "red")
+
+# Vẽ đường thẳng tại điểm gẩy (thủ công ở mức 0.5)
+abline(h = eps_value, col = "red", lty = 2)
+```
+
+
+Biểu đồ cho thấy khoảng cách tăng dần một cách ổn định cho đến khoảng 3700 điểm, sau đó tăng mạnh, tạo thành một điểm gẩy tại khoảng cách 0.4. Điểm này được chọn làm giá trị epsilon (eps = 0.4) cho thuật toán DBSCAN 
+
+## Phân cụm, đánh giá chất lượng phân cụm DBSCAN 
+
+Khi đã xác định được các tham số cho mô hình ta có thể dễ dàng phân cụm dữ liệu xử dụng thư viện DBSCAN, trong quá trình phân cụm dữ liệu RFM bằng thuật toán DBSCAN với các tham số tối ưu được lựa chọn là eps = 0.4 và minPts = 4, ta tiến hành đánh giá chất lượng phân cụm dựa trên hai chỉ số phổ biến: Silhouette Score và Calinski-Harabasz Index, tỷ lệ nhiễu (Noise Ratio) 
+
+### Silhouette Score
+```{r}
+# Áp dụng DBSCAN với tham số phù hợp
+db_result <- dbscan(scaled_data_DB, eps = 0.4, MinPts = 4)
+non_noise <- which(db_result$cluster > 0)
+
+# Nếu số lượng cụm hợp lệ > 1 thì mới tính Silhouette
+if (length(unique(db_result$cluster[non_noise])) > 1) {
+  
+  # Tính silhouette
+  sil <- silhouette(db_result$cluster[non_noise], dist(scaled_data_DB[non_noise, ]))
+  
+  # Tính điểm silhouette trung bình toàn bộ
+  avg_sil <- mean(sil[, 3], na.rm = TRUE)
+  cat("Điểm Silhouette trung bình:", avg_sil, "\n")
+  
+  # Tạo dataframe từ silhouette object
+  sil_df <- as.data.frame(sil)
+  
+  # Tính Silhouette trung bình theo từng cụm
+  avg_sil_by_cluster <- sil_df %>%
+    group_by(cluster) %>%
+    summarise(avg_sil_width = mean(sil_width))
+  
+  # Vẽ biểu đồ cột
+  dev.new(width = 10, height = 8)
+  ggplot(avg_sil_by_cluster, aes(x = factor(cluster), y = avg_sil_width)) +
+    geom_col(fill = "steelblue") +
+    labs(title = "Silhouette Score theo từng cụm",
+         x = "Cụm",
+         y = "Silhouette Score trong từng cụm") +
+    theme_minimal()
+  
+} else {
+  cat("Không đủ số cụm để tính Silhouette Score.\n")
+}
+```
+Điểm Silhouette trung bình: ~0.0496 cho thấy các cụm chưa thực sự rõ ràng hoặc có mức độ chồng lấn nhất định.
+
+Khi xét riêng từng cụm, chỉ có cụm 11 đạt Silhouette Score vượt trội (~0.23), cho thấy cụm này có tính tách biệt rõ ràng và nội tại chặt chẽ.
+Ngược lại, các cụm như 6 và 8 có điểm Silhouette âm, chứng tỏ các điểm trong những cụm này có xu hướng gần hơn với cụm lân cận hơn là với cụm hiện tại → phân cụm kém hiệu quả.
+
+
+### 2. Tỷ lệ nhiễu (Noise Ratio)
+```{r}
+# Tính tỷ lệ nhiễu
+noise_ratio <- sum(db_result$cluster == 0) / length(db_result$cluster)
+cat("Tỷ lệ nhiễu:", noise_ratio, "\n")
+
+```
+```{r}
+noise_count <- sum(db_result$cluster == 0)
+clustered_count <- sum(db_result$cluster != 0)
+
+# Dữ liệu cho biểu đồ tròn
+pie_data <- data.frame(
+  category = c("Nhiễu", "Phân cụm"),
+  count = c(noise_count, clustered_count)
+)
+
+# Tải thư viện ggplot2 nếu chưa có
+library(ggplot2)
+
+# Vẽ biểu đồ tròn
+ggplot(pie_data, aes(x = "", y = count, fill = category)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar("y", start = 0) +
+  labs(title = "Tỉ lệ nhiễu trong kết quả phân cụm DBSCAN") +
+  theme_void() +
+  scale_fill_manual(values = c("Nhiễu" = "lightpink", "Phân cụm" = "lightblue"))
+```
+
+Trong quá trình phân cụm với DBSCAN, tỷ lệ điểm dữ liệu không thuộc bất kỳ cụm nào là khoảng 2.10%, Tỷ lệ này tương đối thấp, cho thấy dữ liệu RFM đã được xử lý tốt, 
+### 3. Davies-Bouldin Index và Calinski-Harabasz Index
+
+```{r}
+# Tính Calinski-Harabasz Index (chỉ cho các điểm không phải nhiễu)
+if (length(unique(db_result$cluster[non_noise])) > 1) {
+  ch_index <- calinhara(scaled_data[non_noise, ], 
+                        db_result$cluster[non_noise])
+  cat("Calinski-Harabasz Index:", ch_index, "\n")
+} else {
+  cat("Không thể tính CH Index: chỉ tìm thấy 1 cụm (không tính nhiễu)\n")
+}
+```
+Giá trị: 593.7985
+Chỉ số Calinski-Harabasz càng cao chứng tỏ cụm nội tại càng chặt chẽ và cụm với cụm càng cách biệt. Trong trường hợp này, chỉ số đạt mức khá cao cho thấy sự tách biệt tổng thể giữa các cụm là tương đối ổn, mặc dù không phản ánh rõ các điểm nhiễu hoặc gán sai cụm như Silhouette Score.
+
+## Trực quan hóa kết quả phân cụm DBSCAN
+
+UMAP (Uniform Manifold Approximation and Projection) là một phương pháp giảm chiều dữ liệu rất hiệu quả, đặc biệt khi trực quan hóa các kết quả phân cụm trong không gian 2D. Khi áp dụng vào kết quả phân cụm DBSCAN, UMAP giúp làm rõ cấu trúc và mối quan hệ giữa các điểm dữ liệu mà các phương pháp giảm chiều khác có thể không phát hiện ra. DBSCAN, vốn là phương pháp phân cụm không có sẵn số lượng cụm trước, có thể tạo ra các cụm với hình dạng phức tạp và có thể có một số điểm nhiễu (noise). Vậy nên nhóm sử dụng UMAP trong trường hợp này giúp chuyển các đặc tính không gian cao chiều của dữ liệu vào không gian 2D một cách trực quan, giữ được các cấu trúc cận kề và phân tách rõ ràng giữa các cụm.
+
+```{r message=FALSE, warning=FALSE}
+library(umap)
+# Giảm chiều bằng UMAP
+set.seed(42)  # Giữ kết quả ổn định
+umap_result <- umap(scaled_data_DB)
+
+# Tạo dataframe 2D từ kết quả UMAP
+umap_df <- as.data.frame(umap_result$layout)
+colnames(umap_df) <- c("UMAP1", "UMAP2")
+
+# Gán nhãn cụm từ DBSCAN (nếu có)
+umap_df$cluster <- factor(db_result$cluster)  # Bạn đã chạy db_result ở bước trước rồi
+
+# Vẽ biểu đồ trực quan cụm
+ggplot(umap_df, aes(x = UMAP1, y = UMAP2, color = cluster)) +
+  geom_point(alpha = 0.7, size = 2) +
+  labs(title = "Trực quan hóa phân cụm DBSCAN bằng UMAP",
+       x = "UMAP1", y = "UMAP2") +
+  scale_color_brewer(palette = "Set1") +
+  theme_minimal()
+```
+**Nhận xét:**
+
+Các cụm có hình dạng tự nhiên, kích thước khác nhau – đúng với đặc điểm mà DBSCAN được thiết kế để xử lý.
+
+Phần lớn cụm tách biệt rõ ràng, đặc biệt là các cụm lớn như cụm 2, 5, 6 và 11 cho thấy:
+
+DBSCAN đã thành công trong việc nhận diện các khu vực có mật độ cao rõ ràng trong không gian đã được UMAP chiếu xuống.
+
+Cụm nhiễu (cluster 0) bao gồm các điểm rải rác: cho thấy DBSCAN không ép buộc các điểm ngoại lai vào cụm nào cả.
+
+
+
+
+
+
