@@ -1,0 +1,781 @@
+---
+title: "code"
+output: html_document
+---
+
+```{r echo15=FALSE,results='hide', message=FALSE, warning=FALSE, paged.print=FALSE}
+library(tidyverse)
+library(cluster)
+library(factoextra)
+library(lubridate)
+library(scales)
+library(psych)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(gridExtra)
+```
+
+```{r}
+# Đọc dữ liệu
+df <- read_excel("Online Retail.xlsx")
+head(df, width = Inf)  
+
+
+
+```
+
+```{r}
+#Kiểm tra kiểu dữ liệu
+str(df)
+```
+
+```{r}
+# thống kê mô tả dữ liệu 
+describe(df)
+```
+
+```{r}
+# Thống kê data object 
+summary(df[, sapply(df, is.character)])
+```
+
+```{r}
+#kiểm tra dữ liệu thiếu 
+colSums(is.na(df))
+```
+
+```{r echo16=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE, results='hide'}
+# Kiểm tra giá trị thiếu của CustomerID
+df_na <- df[is.na(df$CustomerID), ]
+print(df_na[sample(nrow(df_na), 10), ], width = Inf)
+```
+
+```{r}
+# Chuyển 'InvoiceNo' về kiểu chuỗi
+df$InvoiceNo <- as.character(df$InvoiceNo)
+#Lọc ra những dòng KHÔNG có InvoiceNo đúng 6 chữ số
+df[!grepl("^\\d{6}$", df$InvoiceNo), ]
+#Kiểm tra kí tự khác trong cột InvoiceNo 
+unique(gsub("[0-9]", "", df$InvoiceNo))
+# kiểm tra col 'InvoiceNo' có giá trị nào bắt đầu bằng kí tự 'A' ko
+df[grepl("^A", df$InvoiceNo), ]
+
+```
+
+```{r}
+# Đảm bảo 'StockCode' là kiểu chuỗi
+df$StockCode <- as.character(df$StockCode)
+# Lọc những dòng KHÔNG phải 5 chữ số hoặc 5 chữ số + chữ cái
+mask <- !(grepl("^\\d{5}$", df$StockCode) | grepl("^\\d{5}[a-zA-Z]+$", df$StockCode))
+# Lấy các StockCode sai định dạng và loại trùng
+invalid_stockcodes <- unique(df$StockCode[mask])
+# Hiển thị kết quả
+print(invalid_stockcodes)
+# Lọc những dòng có chứa chuỗi 'DOT'
+df_with_DOT <- df[grepl("DOT", df$StockCode), ]
+# Hiển thị kết quả
+print(df_with_DOT)
+```
+
+```{r}
+# Chuyển InvoiceDate thành kiểu Date
+df$InvoiceDate <- as.Date(df$InvoiceDate)
+str(df)
+```
+
+```{r}
+# 1. Gán lại df gốc
+df_cleaned <- df
+# Loại bỏ toàn bộ dòng chứa bất kỳ ký tự KHÔNG PHẢI số (0–9)
+df_cleaned <- df_cleaned[grepl("^[0-9]+$", df_cleaned$InvoiceNo), ]
+
+```
+
+```{r}
+# Kiểm tra còn chữ cái không?
+any(grepl("[A-Za-z]", df_cleaned$InvoiceNo))  # Phải trả FALSE
+
+# Kiểm tra còn ký tự đặc biệt không?
+any(grepl("[^0-9]", df_cleaned$InvoiceNo))    # Phải trả FALSE
+```
+
+```{r step30, message=FALSE}
+# Tạo điều kiện giữ lại các StockCode hợp lệ:
+mask <- grepl("^\\d{5,6}$", df_cleaned$StockCode) |           # Toàn số, 5-6 chữ số
+        grepl("^\\d{5}[A-Za-z]$", df_cleaned$StockCode) |     # 5 số + 1 chữ cái
+        df_cleaned$StockCode == "APADSS"                      # Mã đặc biệt
+
+# Áp dụng lọc
+df_cleaned <- df_cleaned[mask, ]
+
+df_cleaned
+```
+
+```{r}
+sum(is.na(df$CustomerID))  # đếm số dòng bị thiếu
+```
+
+```{r}
+# Xóa các dòng có NA ở cột CustomerID
+df_cleaned <- df_cleaned[!is.na(df_cleaned$CustomerID), ]
+
+nrow(df) - nrow(df_cleaned)  # số dòng đã bị xóa
+
+colSums(is.na(df_cleaned))
+```
+
+```{r}
+# thống kê data sau khi drop na
+summary(df_cleaned)
+
+```
+
+```{r}
+# kiểm tra giá trị bằng 0 của col 'UnitPrice'
+sum(df_cleaned$UnitPrice == 0)
+# chỉ lấy giá trị khác 0 
+df_cleaned <- df_cleaned[df_cleaned$UnitPrice > 0, ]
+#Kiểm tra 
+summary(df_cleaned)
+
+```
+
+```{r}
+#Tính tỷ lệ phần trăm số dòng còn lại trong df_cleaned so với tổng số dòng ban đầu trong df.
+sprintf("%.2f%%", nrow(df_cleaned) / nrow(df) * 100)
+```
+
+```{r echo17=FALSE}
+## Truc quan hoa
+# So dong ban dau va sau khi lam sach
+total_rows <- nrow(df)
+cleaned_rows <- nrow(df_cleaned)
+removed_rows <- total_rows - cleaned_rows
+
+# Tao dataframe de ve
+summary_df <- data.frame(
+  status = c("Giu lai", "Da loai"),
+  quantity = c(cleaned_rows, removed_rows)
+)
+
+# Ve bieu do
+barplot(
+  summary_df$quantity,
+  names.arg = summary_df$status,
+  col = c("skyblue", "salmon"),
+  main = "So sanh so dong truoc va sau khi lam sach",
+  ylab = "So dong",
+  ylim = c(0, max(summary_df$quantity, na.rm = TRUE) * 1.1)
+
+)
+
+# Hien thi so lieu tren cot
+text(
+  x = c(1, 2),
+  y = summary_df$quantity,
+  labels = summary_df$quantity,
+  pos = 3,
+  cex = 1.2
+)
+
+```
+
+```{r}
+# tạo cột tổng chi tiêu làm Monetary (tổng chi tiêu)
+df_cleaned$SalesLineTotal <- df_cleaned$Quantity * df_cleaned$UnitPrice
+# Hiển thị kết quả
+print(df_cleaned, width = Inf)
+```
+
+```{r}
+aggregated_df <- summarise(
+  group_by(df_cleaned, CustomerID),
+  MonetaryValue = sum(SalesLineTotal, na.rm = TRUE),
+  Frequency = n_distinct(InvoiceNo),
+  LastInvoiceDate = max(InvoiceDate,na.rm = TRUE)
+)
+```
+
+```{r}
+# Tính Recency
+analysis_date <- as.Date(max(df_cleaned$InvoiceDate),na.rm = TRUE)
+aggregated_df$Recency <- as.numeric(analysis_date - aggregated_df$LastInvoiceDate)
+
+print(aggregated_df, width = Inf)
+
+```
+
+```{r echo18=FALSE}
+# Thiết lập bố cục 1 hàng 3 biểu đồ
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))  # 1 dòng, 3 cột
+
+# Biểu đồ 1: Monetary Value
+hist(aggregated_df$MonetaryValue,
+     breaks = 10,
+     col = "skyblue",
+     border = "red",
+     main = "Monetary Value Distribution",
+     xlab = "Monetary Value",
+     ylab = "Count")
+
+# Biểu đồ 2: Frequency
+hist(aggregated_df$Frequency,
+     breaks = 10,
+     col = "lightgreen",
+     border = "red",
+     main = "Frequency Distribution",
+     xlab = "Frequency",
+     ylab = "Count")
+
+# Biểu đồ 3: Recency
+hist(aggregated_df$Recency,
+     breaks = 20,
+     col = "yellow",
+     border = "red",
+     main = "Recency Distribution",
+     xlab = "Recency",
+     ylab = "Count")
+
+# Reset layout về mặc định (1 biểu đồ/khung)
+par(mfrow = c(1, 1))
+```
+
+
+```{r }
+data_outliers <- aggregated_df
+```
+
+```{r echo19=FALSE}
+# Đặt layout: 1 hàng, 3 biểu đồ
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+
+# Boxplot 1: MonetaryValue
+boxplot(aggregated_df$MonetaryValue,
+        col = "skyblue",
+        main = "Monetary Value Boxplot",
+        xlab = "Monetary Value")
+
+# Boxplot 2: Frequency
+boxplot(aggregated_df$Frequency,
+        col = "lightgreen",
+        main = "Frequency Boxplot",
+        xlab = "Frequency")
+
+# Boxplot 3: Recency
+boxplot(aggregated_df$Recency,
+        col = "salmon",
+        main = "Recency Boxplot",
+        xlab = "Recency")
+
+# Reset lại layout về mặc định (1 biểu đồ)
+par(mfrow = c(1, 1))
+```
+
+```{r}
+# Tính Q1, Q3 và IQR cho MonetaryValue
+M_Q1 <- quantile(aggregated_df$MonetaryValue, 0.25)
+M_Q3 <- quantile(aggregated_df$MonetaryValue, 0.75)
+M_IQR <- M_Q3 - M_Q1
+
+# Lọc các dòng là outlier
+monetary_outliers_df <- aggregated_df[
+  aggregated_df$MonetaryValue < (M_Q1 - 1.5 * M_IQR) |
+  aggregated_df$MonetaryValue > (M_Q3 + 1.5 * M_IQR),
+]
+
+# Xem mô tả dữ liệu outlier
+summary(monetary_outliers_df)
+
+```
+
+```{r}
+# Tính Q1, Q3 và IQR cho Frequency
+F_Q1 <- quantile(aggregated_df$Frequency, 0.25)
+F_Q3 <- quantile(aggregated_df$Frequency, 0.75)
+F_IQR <- F_Q3 - F_Q1
+
+# Lọc các dòng là outlier theo Frequency
+frequency_outliers_df <- aggregated_df[
+  aggregated_df$Frequency < (F_Q1 - 1.5 * F_IQR) |
+  aggregated_df$Frequency > (F_Q3 + 1.5 * F_IQR),
+]
+
+# Thống kê dữ liệu outlier
+summary(frequency_outliers_df)
+
+```
+
+```{r}
+# Loại bỏ outlier bằng cách giữ lại các dòng KHÔNG nằm trong monetary và frequency outliers
+
+# Lấy chỉ số hàng (index) cần loại bỏ
+outlier_indices <- union(
+  which(aggregated_df$MonetaryValue < (M_Q1 - 1.5 * M_IQR) | aggregated_df$MonetaryValue > (M_Q3 + 1.5 * M_IQR)),
+  which(aggregated_df$Frequency < (F_Q1 - 1.5 * F_IQR) | aggregated_df$Frequency > (F_Q3 + 1.5 * F_IQR))
+)
+
+# Giữ lại các dòng không nằm trong chỉ số outlier
+non_outliers_df <- aggregated_df[-outlier_indices, ]
+
+# Kiểm tra lại
+summary(non_outliers_df)
+
+```
+
+```{r echo20=FALSE}
+# Trực quan sau khi loại bỏ 
+# Chia khung hình ra 1 dòng 3 biểu đồ
+par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+
+# Boxplot 1: Monetary Value
+boxplot(non_outliers_df$MonetaryValue,
+        col = "skyblue",
+        main = "Monetary Value Boxplot",
+        xlab = "Monetary Value")
+
+# Boxplot 2: Frequency
+boxplot(non_outliers_df$Frequency,
+        col = "lightgreen",
+        main = "Frequency Boxplot",
+        xlab = "Frequency")
+
+# Boxplot 3: Recency
+boxplot(non_outliers_df$Recency,
+        col = "salmon",
+        main = "Recency Boxplot",
+        xlab = "Recency")
+
+# Reset lại layout về mặc định
+par(mfrow = c(1, 1))
+```
+
+```{r}
+# Chuẩn hóa các cột MonetaryValue, Frequency, Recency
+scaled_data <- scale(non_outliers_df[, c("MonetaryValue", "Frequency", "Recency")])
+```
+
+```{r}
+# # Chuyển matrix chuẩn hóa về data.frame
+ scaled_data_df <- as.data.frame(scaled_data)
+# 
+# # Đặt lại tên cột
+colnames(scaled_data_df) <- c("MonetaryValue", "Frequency", "Recency")
+# 
+# # Gán lại rownames nếu cần giữ index
+rownames(scaled_data_df) <- rownames(non_outliers_df)
+# # Xem kết quả
+head(scaled_data_df)
+```
+
+```{r}
+
+# Thiết lập
+max_k <- 15
+k_values <- 2:max_k
+
+inertia <- numeric(length(k_values))
+silhouette_scores <- numeric(length(k_values))
+
+for (i in seq_along(k_values)) {
+  k <- k_values[i]
+  set.seed(42)
+  kmeans_model <- kmeans(scaled_data_df, centers = k, nstart = 25, iter.max = 1000)
+
+  # inertia
+  inertia[i] <- kmeans_model$tot.withinss
+
+  # silhouette
+  sil <- silhouette(kmeans_model$cluster, dist(scaled_data_df))
+  silhouette_scores[i] <- mean(sil[, 3])
+}
+
+# Tạo dataframe cho ggplot
+plot_df <- data.frame(
+  k = k_values,
+  Inertia = inertia,
+  Silhouette = silhouette_scores
+)
+
+# Biểu đồ Elbow
+p1 <- ggplot(plot_df, aes(x = k, y = Inertia)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "KMeans Inertia for Different Values of k",
+       x = "Number of Clusters (k)", y = "Inertia") +
+  theme_minimal() +
+  scale_x_continuous(breaks = k_values)
+
+# Biểu đồ Silhouette
+p2 <- ggplot(plot_df, aes(x = k, y = Silhouette)) +
+  geom_line(color = "orange") +
+  geom_point(color = "orange") +
+  labs(title = "Silhouette Scores for Different Values of k",
+       x = "Number of Clusters (k)", y = "Silhouette Score") +
+  theme_minimal() +
+  scale_x_continuous(breaks = k_values)
+
+# Hiển thị cả hai biểu đồ cạnh nhau
+grid.arrange(p1, p2, ncol = 2)
+
+```
+
+```{r}
+ library(scatterplot3d)  # vẽ 3D scatter
+
+ # Huấn luyện mô hình KMeans
+ set.seed(42)
+ kmeans_model <- kmeans(scaled_data_df, centers = 4, nstart = 25, iter.max = 1000)
+
+# Gán nhãn cụm vào non_outliers_df
+ non_outliers_df$Cluster <- kmeans_model$cluster
+
+ # Màu thủ công cho từng cụm
+ cluster_colors <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728")
+ color_map <- cluster_colors[non_outliers_df$Cluster]
+
+ plot_ly(non_outliers_df,
+         x = ~MonetaryValue,
+         y = ~Frequency,
+         z = ~Recency,
+         color = ~factor(Cluster),
+         colors = cluster_colors,
+         type = 'scatter3d',
+         mode = 'markers',
+         marker = list(size = 2)) %>%
+   layout(title = "3D Scatter Plot of Customer Data by Cluster")
+```
+
+```{r}
+# Đảm bảo Cluster là factor
+non_outliers_df$Cluster <- as.factor(non_outliers_df$Cluster)
+
+# Tạo bảng màu tương ứng như Python
+cluster_colors <- c("0" = "#1f77b4", "1" = "#ff7f0e", "2" = "#2ca02c", "3" = "#d62728")
+
+# Violin plot cho Recency
+ggplot(non_outliers_df, aes(x = Cluster, y = Recency, fill = Cluster)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, color = "black", fill = "white") +
+  labs(title = "Phan bo Recency theo cum", y = "Recency") +
+  theme_minimal()
+
+# Violin plot cho Frequency
+ggplot(non_outliers_df, aes(x = Cluster, y = Frequency, fill = Cluster)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, color = "black", fill = "white") +
+  labs(title = "Phan bo Frequency theo cum", y = "Frequency") +
+  theme_minimal()
+
+# Tương tự cho Monetary
+ggplot(non_outliers_df, aes(x = Cluster, y = MonetaryValue, fill = Cluster)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, color = "black", fill = "white") +
+  labs(title = "Phan bo Monetary theo cum", y = "Monetary Value") +
+  theme_minimal()
+```
+
+```{r}
+table(non_outliers_df$Cluster) #Số lượng khách hàng từng cụm
+```
+
+```{r}
+# Tìm chỉ số giao nhau giữa 2 tập outliers
+overlap_indices <- intersect(rownames(monetary_outliers_df), rownames(frequency_outliers_df))
+
+# Tạo tập chỉ là Monetary outliers
+monetary_only_outliers <- monetary_outliers_df[!rownames(monetary_outliers_df) %in% overlap_indices, ]
+monetary_only_outliers$Cluster <- -1
+
+# Tạo tập chỉ là Frequency outliers
+frequency_only_outliers <- frequency_outliers_df[!rownames(frequency_outliers_df) %in% overlap_indices, ]
+frequency_only_outliers$Cluster <- -2
+
+# Tạo tập là outliers của cả hai
+monetary_and_frequency_outliers <- monetary_outliers_df[rownames(monetary_outliers_df) %in% overlap_indices, ]
+monetary_and_frequency_outliers$Cluster <- -3
+
+# Gộp tất cả lại
+outlier_clusters_df <- rbind(
+  monetary_only_outliers,
+  frequency_only_outliers,
+  monetary_and_frequency_outliers
+)
+
+# Kết quả
+head(outlier_clusters_df)
+
+```
+
+```{r}
+# Kiểm tra
+table(outlier_clusters_df$Cluster)
+```
+
+
+```{r}
+# Chuyển Cluster thành factor để dễ gán màu
+outlier_clusters_df$Cluster <- factor(outlier_clusters_df$Cluster)
+
+# Tạo bảng màu tương đương cluster_colors
+cluster_colors <- c("-1" = "#9467bd", "-2" = "#8c564b", "-3" = "#e377c2")
+
+# Violin plot: MonetaryValue
+ggplot(outlier_clusters_df, aes(x = Cluster, y = MonetaryValue, fill = Cluster)) +
+  geom_violin(trim = FALSE) +
+  scale_fill_manual(values = cluster_colors) +
+  labs(title = "Monetary Value by Cluster", y = "Monetary Value") +
+  theme_minimal()
+
+# Violin plot: Frequency
+ggplot(outlier_clusters_df, aes(x = Cluster, y = Frequency, fill = Cluster)) +
+  geom_violin(trim = FALSE) +
+  scale_fill_manual(values = cluster_colors) +
+  labs(title = "Frequency by Cluster", y = "Frequency") +
+  theme_minimal()
+
+# Violin plot: Recency
+ggplot(outlier_clusters_df, aes(x = Cluster, y = Recency, fill = Cluster)) +
+  geom_violin(trim = FALSE) +
+  scale_fill_manual(values = cluster_colors) +
+  labs(title = "Recency by Cluster", y = "Recency") +
+  theme_minimal()
+
+```
+
+
+```{r}
+# Tạo vector gán nhãn cluster
+cluster_labels <- c(
+  "0" = "RETAIN",       # Giữ chân khách hàng hiện tại
+  "1" = "RE-ENGAGE",    # Tương tác lại với khách hàng đã rời đi
+  "2" = "NURTURE",      # Chăm sóc khách hàng tiềm năng
+  "3" = "REWARD",       # Thưởng cho khách hàng trung thành
+  "4" = "EXPLORE",      # Nhóm khách hàng chưa có hành vi nổi bật rõ ràng
+  "-1" = "PAMPER",      # Chiều chuộng khách hàng VIP
+  "-2" = "UPSELL",      # Đề xuất mua thêm
+  "-3" = "DELIGHT"      # Trải nghiệm xuất sắc
+)
+```
+
+```{r}
+# Gộp 2 dataframe lại theo hàng (giống pd.concat)
+full_clustering_df <- rbind(non_outliers_df, outlier_clusters_df)
+full_clustering_df$ClusterLabel <- cluster_labels[as.character(full_clustering_df$Cluster)]
+# Xem kết quả
+head(full_clustering_df)
+
+```
+
+```{r}
+# Kiểm tra số hàng
+nrow(full_clustering_df)
+
+# Kiểm tra các nhóm trong Cluster
+table(full_clustering_df$Cluster)
+
+# Kiểm tra nếu có cột ClusterLabel đã gán
+table(full_clustering_df$ClusterLabel)
+
+```
+
+```{r}
+# Gán nhãn cụm bằng named vector cluster_labels
+full_clustering_df$ClusterLabel <- cluster_labels[as.character(full_clustering_df$Cluster)]
+
+# Xem ngẫu nhiên 10 dòng
+full_clustering_df[sample(nrow(full_clustering_df), 10), ]
+
+```
+
+```{r}
+# Tính số lượng khách mỗi cụm
+cluster_counts <- full_clustering_df %>%
+  count(ClusterLabel, name = "CustomerCount")
+```
+
+```{r}
+# Tính trung bình các biến
+feature_means <- full_clustering_df %>%
+  mutate(MonetaryValuePer100 = MonetaryValue / 100) %>%
+  group_by(ClusterLabel) %>%
+  summarise(
+    Recency = mean(Recency, na.rm = TRUE),
+    Frequency = mean(Frequency, na.rm = TRUE),
+    `MonetaryValue per 100` = mean(MonetaryValuePer100, na.rm = TRUE)
+  ) %>%
+  pivot_longer(cols = c("Recency", "Frequency", "MonetaryValue per 100"),
+               names_to = "Feature", values_to = "MeanValue")
+```
+
+```{r}
+# Merge lại và sắp xếp giảm dần theo CustomerCount
+plot_df <- left_join(feature_means, cluster_counts, by = "ClusterLabel") %>%
+  mutate(ClusterLabel = factor(ClusterLabel, levels = cluster_counts %>%
+                                 arrange(desc(CustomerCount)) %>%
+                                 pull(ClusterLabel)))
+```
+
+```{r}
+# Vẽ biểu đồ kết hợp
+library(viridis)
+plot_df$Feature <- factor(plot_df$Feature, levels = c("Recency", "Frequency", "MonetaryValue per 100"))
+
+ggplot(plot_df, aes(x = ClusterLabel)) +
+  # Biểu đồ cột số lượng KH với viridis
+  geom_col(aes(y = CustomerCount, fill = ClusterLabel), width = 0.6) +
+  scale_fill_viridis(discrete = TRUE, option = "D") +
+  scale_y_continuous(
+    name = "Number of Customers",
+    sec.axis = sec_axis(~., name = "Average Feature Values")
+  ) +
+  # Biểu đồ đường trung bình các feature
+  geom_line(aes(y = MeanValue, color = Feature, group = Feature), size = 1.2) +
+  geom_point(aes(y = MeanValue, color = Feature), size = 2) +
+  labs(
+    title = "Cluster Distribution with Average Feature Values",
+    x = "Cluster Label"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.title.y.left = element_text(color = "black"),
+    axis.title.y.right = element_text(color = "darkgreen"),
+    legend.title = element_blank()
+  )
+```
+
+```{r step31, message=FALSE, warning=FALSE, fig.cap = "Đồ thị xác định Eps bằng phương pháp \\textit{k}-distance graph"}
+# Cài đặt và nạp các gói cần thiết
+library(dbscan)  # Cho thuật toán DBSCAN
+library(factoextra)  # Cho trực quan hóa
+library(fpc)  # Cho đánh giá phân cụm
+library(ggplot2)  # Cho vẽ biểu đồ
+library(cluster)  # Cho hàm silhouette
+
+
+scaled_data_DB <- scale(non_outliers_df[, c("MonetaryValue", "Frequency", "Recency")])
+
+# Tính khoảng cách k-nearest neighbors
+k=3
+knn_dists <- kNNdist(scaled_data_DB, k = k)
+
+# Sắp xếp khoảng cách và vẽ đồ thị
+eps_candidates <- sort(knn_dists)
+plot(eps_candidates, type = "l", 
+     xlab = "Diem du lieu (da sap xep)",
+     ylab = paste("Khoang cach den diem thu", k, "gan nhat"),
+     main = "Phuong phap k-distance")
+
+# Tìm vị trí của điểm gẩy thủ công (khoảng 0.5)
+eps_value <- 0.4
+eps_index <- which.min(abs(eps_candidates - eps_value))
+
+# Đánh dấu điểm gẩy
+points(eps_index, eps_candidates[eps_index], col = "red", pch = 19)
+text(eps_index, eps_candidates[eps_index], 
+     labels = paste("ε ≈", round(eps_candidates[eps_index], 2)), 
+     pos = 4, col = "red")
+
+# Vẽ đường thẳng tại điểm gẩy (thủ công ở mức 0.5)
+abline(h = eps_value, col = "red", lty = 2)
+```
+
+```{r}
+# Áp dụng DBSCAN với tham số phù hợp
+db_result <- dbscan(scaled_data_DB, eps = 0.4, MinPts = 4)
+non_noise <- which(db_result$cluster > 0)
+
+# Nếu số lượng cụm hợp lệ > 1 thì mới tính Silhouette
+if (length(unique(db_result$cluster[non_noise])) > 1) {
+  
+  # Tính silhouette
+  sil <- silhouette(db_result$cluster[non_noise], dist(scaled_data_DB[non_noise, ]))
+  
+  # Tính điểm silhouette trung bình toàn bộ
+  avg_sil <- mean(sil[, 3], na.rm = TRUE)
+  cat("Điem Silhouette trung binh:", avg_sil, "\n")
+  
+  # Tạo dataframe từ silhouette object
+  sil_df <- as.data.frame(sil)
+  
+  # Tính Silhouette trung bình theo từng cụm
+  avg_sil_by_cluster <- sil_df %>%
+    group_by(cluster) %>%
+    summarise(avg_sil_width = mean(sil_width))
+  
+  # Vẽ biểu đồ cột
+  dev.new(width = 10, height = 8)
+  ggplot(avg_sil_by_cluster, aes(x = factor(cluster), y = avg_sil_width)) +
+    geom_col(fill = "steelblue") +
+    labs(title = "Silhouette Score theo tung cum",
+         x = "Cum",
+         y = "Silhouette Score trong tung cum") +
+    theme_minimal()
+  
+} else {
+  cat("Khong du so cum de tinh Silhouette Score.\n")
+}
+```
+
+```{r}
+# Tính tỷ lệ nhiễu
+noise_ratio <- sum(db_result$cluster == 0) / length(db_result$cluster)
+cat("Ty le nhieu:", noise_ratio, "\n")
+```
+
+```{r echo25 = FALSE}
+noise_count <- sum(db_result$cluster == 0)
+clustered_count <- sum(db_result$cluster != 0)
+
+# Dữ liệu cho biểu đồ tròn
+pie_data <- data.frame(
+  category = c("Nhieu", "Phan cum"),
+  count = c(noise_count, clustered_count)
+)
+
+# Tải thư viện ggplot2 nếu chưa có
+library(ggplot2)
+
+# Vẽ biểu đồ tròn
+ggplot(pie_data, aes(x = "", y = count, fill = category)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar("y", start = 0) +
+  labs(title = "Ti le nhieu trong ket qua phan cum DBSCAN") +
+  theme_void() +
+  scale_fill_manual(values = c("Nhieu" = "lightpink", "Phan cum" = "lightblue"))
+```
+
+```{r}
+# Tính Calinski-Harabasz Index (chỉ cho các điểm không phải nhiễu)
+if (length(unique(db_result$cluster[non_noise])) > 1) {
+  ch_index <- calinhara(scaled_data[non_noise, ], 
+                        db_result$cluster[non_noise])
+  cat("Calinski-Harabasz Index:", ch_index, "\n")
+} else {
+  cat("Khong the tinh CH Index: chi tim thay 1 cum (khong tinh nhieu)\n")
+}
+```
+
+```{r}
+library(umap)
+# Giảm chiều bằng UMAP
+set.seed(42)  # Giữ kết quả ổn định
+umap_result <- umap(scaled_data_DB)
+
+# Tạo dataframe 2D từ kết quả UMAP
+umap_df <- as.data.frame(umap_result$layout)
+colnames(umap_df) <- c("UMAP1", "UMAP2")
+
+# Gán nhãn cụm từ DBSCAN (nếu có)
+umap_df$cluster <- factor(db_result$cluster)  # Bạn đã chạy db_result ở bước trước rồi
+
+# Vẽ biểu đồ trực quan cụm
+ggplot(umap_df, aes(x = UMAP1, y = UMAP2, color = cluster)) +
+  geom_point(alpha = 0.7, size = 2) +
+  labs(title = "Truc quan hoa phan cum DBSCAN bang UMAP",
+       x = "UMAP1", y = "UMAP2") +
+  scale_color_brewer(palette = "Set1") +
+  theme_minimal()
+```
+
